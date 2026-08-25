@@ -1,0 +1,4 @@
+
+.superpowers/
+.venv
+*.egg-info
