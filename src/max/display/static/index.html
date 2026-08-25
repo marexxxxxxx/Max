@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Max — Smart Mirror</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header>
+    <h1>Max</h1>
+  </header>
+  <main id="cards"></main>
+  <script>
+    // Cards rendern: pro Typ ein eigenes Layout
+    function renderCard(card) {
+      var el = document.createElement("section");
+      el.className = "card " + card.type;
+      var h2 = document.createElement("h2");
+      h2.textContent = card.title;
+      el.appendChild(h2);
+      var body = document.createElement("div");
+      body.className = "body";
+      var data = card.data || {};
+      if (card.type === "calendar" && data.events) {
+        data.events.forEach(function (line) {
+          var row = document.createElement("div");
+          row.textContent = line;
+          body.appendChild(row);
+        });
+      } else if (card.type === "clock") {
+        body.textContent = data.time;
+      } else if (card.type === "weather") {
+        body.textContent = data.temperature + " — " + data.condition;
+      } else {
+        for (var key in data) {
+          var row = document.createElement("div");
+          row.textContent = key + ": " + data[key];
+          body.appendChild(row);
+        }
+      }
+      el.appendChild(body);
+      return el;
+    }
+
+    function renderAll(cards) {
+      var container = document.getElementById("cards");
+      container.innerHTML = "";
+      cards.forEach(function (card) {
+        container.appendChild(renderCard(card));
+      });
+    }
+
+    function loadCards() {
+      fetch("/api/cards").then(function (r) {
+        return r.json();
+      }).then(renderAll);
+    }
+
+    loadCards();
+    setInterval(loadCards, 5000);
+
+    // Live-Update: bei jeder geänderten Agent-Card neu laden
+    var source = new EventSource("/events");
+    source.addEventListener("card", function () {
+      loadCards();
+    });
+  </script>
+</body>
+</html>
