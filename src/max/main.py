@@ -1,7 +1,7 @@
 import os
 import numpy as np
 
-from max.agents.registry import build_agents
+from max.agents.runner import OpencodeRunner
 from max.config import load_agent_profiles, load_speakers
 from max.pipeline.diarization import PyannoteDiarizer
 from max.pipeline.stt import WhisperTranscriber
@@ -37,18 +37,30 @@ def capture_audio(vad: Vad, max_seconds: float = 30.0, end_silence_frames: int =
     return b"".join(frames)
 
 
-def main():
+def speak(tts, text: str) -> None:
+    """Spricht Text per TTS (sounddevice wird lazy importiert)."""
     import sounddevice as sd
+
+    for chunk in tts.synthesize_chunks(text):
+        sd.play(np.frombuffer(chunk, dtype=np.int16), 22050)
+        sd.wait()
+
+
+def main():
+    import sounddevice as sd  # noqa: F841 — sicher, dass der Import am Start funktioniert
 
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     registry = load_speakers(os.path.join(root, "config", "speakers.yaml"))
-    agents = build_agents(load_agent_profiles(os.path.join(root, "config", "agents")))
+    profiles = load_agent_profiles(os.path.join(root, "config", "agents"))
+    runner = OpencodeRunner(opencode_dir=os.path.join(root, "config", "opencode"))
+    transcriber = WhisperTranscriber()
     graph = build_graph(
-        WhisperTranscriber(),
+        transcriber,
         PyannoteDiarizer(),
         registry,
         OllamaClassifier(os.environ.get("MAX_OLLAMA_MODEL", "qwen2.5:9b")),
-        agents,
+        profiles,
+        runner,
         MockServer2(),
     )
     vad = Vad()
@@ -58,10 +70,23 @@ def main():
         if audio is None:
             continue
         result = graph.invoke({"audio": audio})
+
+        # HITL-Gate: remote-Routing braucht eine Sprachbestätigung des Users
+        if result["awaiting_confirmation"]:
+            print(f"[Max]: {result['answer']}")
+            speak(tts, result["answer"])
+            confirm_audio = capture_audio(vad)
+            if confirm_audio is None:
+                continue  # keine Bestätigung → remote-Routing verworfen
+            confirm_text = transcriber.transcribe(confirm_audio)
+            result = graph.invoke({
+                "confirmation": confirm_text,
+                "query": result["query"],
+                "speaker": result["speaker"],
+            })
+
         print(f"[Max] ({result['speaker']}): {result['answer']}")
-        for chunk in tts.synthesize_chunks(result["answer"]):
-            sd.play(np.frombuffer(chunk, dtype=np.int16), 22050)
-            sd.wait()
+        speak(tts, result["answer"])
 
 
 if __name__ == "__main__":
