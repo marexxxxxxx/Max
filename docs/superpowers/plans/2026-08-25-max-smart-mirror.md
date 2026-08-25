@@ -692,7 +692,8 @@ import os
 
 
 def test_frontend_files():
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # tests/ liegt nur 1 Ebene unter dem Repo-Root → 2× dirname
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     static = os.path.join(root, "src", "max", "display", "static")
     with open(os.path.join(static, "index.html"), encoding="utf-8") as f:
         html = f.read()
