@@ -10,6 +10,7 @@ dependencies = [
   "ollama>=0.4",
   "sounddevice>=0.5",
   "webrtcvad>=2.0",
+  "setuptools<84",
   "PyYAML>=6.0",
   "numpy>=1.24",
 ]
