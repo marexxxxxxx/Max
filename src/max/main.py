@@ -47,7 +47,13 @@ def speak(tts, text: str) -> None:
 
 
 def main():
+    import argparse
     import sounddevice as sd  # noqa: F841 — sicher, dass der Import am Start funktioniert
+
+    parser = argparse.ArgumentParser(description="Max — lokaler Sprachassistent")
+    parser.add_argument("--serve-display", action="store_true",
+                        help="startet zusätzlich den Display-Server (localhost)")
+    args = parser.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     registry = load_speakers(os.path.join(root, "config", "speakers.yaml"))
@@ -65,6 +71,15 @@ def main():
     )
     vad = Vad()
     tts = KokoroTts()
+
+    if args.serve_display:
+        from max.display.server import DisplayServer
+        card_dir = os.path.join(root, "data", "display", "cards")
+        DisplayServer(
+            card_dir,
+            calendar_path=os.path.join(root, "config", "calendar.json"),
+        ).start_in_thread(port=int(os.environ.get("MAX_DISPLAY_PORT", "8080")))
+
     while True:
         audio = capture_audio(vad)
         if audio is None:
