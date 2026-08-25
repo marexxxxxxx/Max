@@ -663,7 +663,8 @@ from max.display.server import DisplayServer
 
 
 def main():
-    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    # display/__main__.py liegt 3 Ebenen tief → 4× dirname bis Repo-Root
+    root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     card_dir = os.path.join(root, "data", "display", "cards")
     calendar_path = os.path.join(root, "config", "calendar.json")
     port = int(os.environ.get("MAX_DISPLAY_PORT", "8080"))
