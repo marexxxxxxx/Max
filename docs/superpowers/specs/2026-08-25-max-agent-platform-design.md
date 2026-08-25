@@ -7,7 +7,7 @@
 
 ## 1. Zweck
 
-Aus dem 1 Mock-Agent des Skeletons wird eine **Plattform**: generischer Agent-Runner mit pluggable Backends, auf dem Fach-Agenten als **eigene opencode-Agenten** laufen (eigene System-Prompts, eigene MCP-Server, eigene Memory). Ein Beispiel-Agent (Ernährungsplaner) mit Mealie-Anbindung demonstriert die Plattform. Human-in-the-Loop (HITL) steuert alle Eskalationen an Server 2.
+Aus dem 1 Mock-Agent des Skeletons wird eine **Plattform**: generischer Agent-Runner mit pluggable Backends, auf dem **mehrere** Fach-Agenten als **eigene opencode-Agenten** laufen (eigene System-Prompts, eigene MCP-Server, eigene Memory). Der Ernährungsplaner mit Mealie-Anbindung ist das erste Beispiel; die Plattform ist von Grund auf für mehrere Agenten ausgelegt. Human-in-the-Loop (HITL) steuert alle Eskalationen an Server 2.
 
 ## 2. Kernentscheidungen (vom Nutzer bestätigt)
 
@@ -15,7 +15,7 @@ Aus dem 1 Mock-Agent des Skeletons wird eine **Plattform**: generischer Agent-Ru
 |---|---|
 | Ausführung | Generischer Agent-Runner mit pluggable Backends (kein Backend fest verdrahtet) |
 | Agent-Konzept | Jeder Fachbereich = eigener opencode-Agent (System-Prompt + MCP-Servern); Eskalation nur mit Sprachbestätigung des Users |
-| Scope B | Plattform + 1 Beispiel-Agent (Ernährungsplaner); spätere Agenten (z. B. Planner) folgen auf derselben Plattform |
+| Scope B | Plattform für **mehrere Agents** + Ernährungsplaner als erstes Beispiel. Neue Agenten folgen per YAML + prompt.md + opencode.json-Eintrag, ohne Architektur-Änderung |
 | HITL | Eskalation an größeren Agent (Server 2) braucht Sprachbestätigung; expliziter Sprachbefehl „erweiterten modus" leitet direkt dorthin; im B bleibt Server 2 der Mock |
 | Memory | Dateibasierte Memory pro Agent (`profile.yaml` + `memory.md`) hinter einem Memory-Interface; Vector-Backend später nachrüstbar |
 | Mealie | Selbst gehostet; MCP via offiziellem Community-Server (`rldiao/mealie-mcp-server`); reine opencode-Konfiguration, kein eigener Code |
@@ -150,6 +150,6 @@ Der Runner ruft `opencode run --agent ernährungsplaner "<task>"` auf. (Exakte C
 
 - **Kein** vector-based Memory in B (Interface + FileMemory; RagMemory später).
 - **Keine** echten opencode-Launches in Tests.
-- **Keine** weitere Fach-Agenten in B (Planner & Co. folgen auf derselben Plattform).
+- Die Plattform ist von Grund auf **multi-agent tauglich** (generischer Runner, pro-Agent-Memory, pro-Fachbereich opencode-Agent). B liefert Ernährungsplaner als erstes Beispiel; weitere Agenten folgen auf derselben Plattform.
 - **Kein** echtes Wake/Remote-Modell (Mock, wie in A; Subprojekt E).
 - **Keine** Mealie-eigene Client-Code (nur MCP-Konfiguration).
