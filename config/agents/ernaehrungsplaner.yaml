@@ -1,0 +1,4 @@
+name: ernährungsplaner
+description: "Ernährungsplaner: plant Mahlzeiten, nutzt Mealie"
+keywords: [ernährung, essen, rezepte, protein, fitness, plan]
+capabilities: [meal plan, recipes, nutrition]

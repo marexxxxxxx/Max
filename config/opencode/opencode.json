@@ -1,0 +1,21 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "ernaehrungsplaner": {
+      "description": "Ernährungsplaner: plant Mahlzeiten und nutzt Mealie für den Tagesplan",
+      "prompt": "{file:./ernaehrungsplaner.prompt.md}",
+      "permission": {
+        "read": "allow",
+        "edit": "allow",
+        "bash": "deny",
+        "external_directory": "allow"
+      }
+    }
+  },
+  "mcp": {
+    "mealie": {
+      "type": "local",
+      "command": ["uvx", "git+https://github.com/rldiao/mealie-mcp-server"]
+    }
+  }
+}

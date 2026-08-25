@@ -1,4 +1,0 @@
-name: demo-agent
-description: "Demo-Agent für den Walking Skeleton"
-keywords: [demo, test]
-capabilities: [echo]
