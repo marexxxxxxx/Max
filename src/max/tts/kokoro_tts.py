@@ -1,4 +1,5 @@
 import re
+import numpy as np
 
 
 def chunk_text(text: str, max_chars: int = 200) -> list[str]:
@@ -29,5 +30,10 @@ class KokoroTts:
         out = []
         for chunk in chunk_text(text):
             audio, _ = k.generate(chunk)
-            out.append(audio.tobytes() if hasattr(audio, "tobytes") else audio)
+            if isinstance(audio, np.ndarray):
+                if audio.dtype == np.float32 or audio.dtype == np.float64:
+                    audio = (np.clip(audio, -1.0, 1.0) * 32767).astype(np.int16)
+                out.append(audio.tobytes())
+            else:
+                out.append(audio)
         return out

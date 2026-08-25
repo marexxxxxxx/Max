@@ -1,5 +1,4 @@
 import os
-import sounddevice as sd
 import numpy as np
 
 from max.agents.registry import build_agents
@@ -14,6 +13,8 @@ from max.tts.kokoro_tts import KokoroTts
 
 
 def capture_audio(vad: Vad, max_seconds: float = 30.0, end_silence_frames: int = 5):
+    import sounddevice as sd
+
     frames = []
     in_speech = False
     silent_run = 0
@@ -37,6 +38,8 @@ def capture_audio(vad: Vad, max_seconds: float = 30.0, end_silence_frames: int =
 
 
 def main():
+    import sounddevice as sd
+
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     registry = load_speakers(os.path.join(root, "config", "speakers.yaml"))
     agents = build_agents(load_agent_profiles(os.path.join(root, "config", "agents")))
