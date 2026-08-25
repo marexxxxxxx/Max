@@ -1,4 +1,6 @@
 
+# Agent-Memory (erzeugt zur Laufzeit)
+data/
 .superpowers/
 .venv
 *.egg-info
