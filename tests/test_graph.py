@@ -1,35 +1,75 @@
-from max.agents.demo_agent import DemoAgent
+from max.agents.runner import MockAgentRunner
 from max.remote.server2 import MockServer2
 from max.router.graph import build_graph
 from tests.conftest import FakeClassifier, FakeDiarizer, FakeTranscriber
 
 
-def _graph(classifier, agents=None, server2=None):
-    agents = agents if agents is not None else {"demo-agent": DemoAgent()}
-    registry = [{"name": "Alex"}]
-    return build_graph(FakeTranscriber(), FakeDiarizer(), registry, classifier, agents,
-                       server2 if server2 is not None else MockServer2())
+def _profiles():
+    return [{"name": "ernaehrungsplaner", "keywords": ["ernährung"], "memory_dir": "x"}]
+
+
+def _graph(classifier, runner=None):
+    runner = runner if runner is not None else MockAgentRunner()
+    return build_graph(
+        FakeTranscriber(), FakeDiarizer(), [{"name": "Alex"}],
+        classifier, _profiles(), runner, MockServer2(),
+    )
 
 
 def test_local_route():
-    result = _graph(FakeClassifier()).invoke({"audio": b"xx"})
+    result = _graph(FakeClassifier(agent="ernaehrungsplaner")).invoke({"audio": b"xx"})
     assert result["route"] == "local"
     assert result["speaker"] == "Alex"
-    assert result["answer"] == "Demo-Antwort zu: Testfrage"
+    assert result["answer"] == "Mock-Antwort zu: Testfrage"
+    assert result["awaiting_confirmation"] is False
 
-def test_remote_route():
+
+def test_remote_route_asks_confirmation():
     result = _graph(FakeClassifier(remote_needed=True)).invoke({"audio": b"xx"})
-    assert result["route"] == "remote"
-    assert result["answer"].startswith("Ich schalte den Hauptrechner ein.")
+    assert result["route"] == "hitl"
+    assert result["awaiting_confirmation"] is True
+    assert result["answer"].startswith("Das braucht den großen Rechner")
+    assert result["query"] == "Testfrage"
 
-def test_low_confidence_goes_remote():
-    assert _graph(FakeClassifier(confidence=0.2)).invoke({"audio": b"xx"})["route"] == "remote"
 
-def test_unknown_agent_goes_remote():
-    assert _graph(FakeClassifier(agent="unbekannt")).invoke({"audio": b"xx"})["route"] == "remote"
+def test_low_confidence_goes_hitl():
+    result = _graph(FakeClassifier(confidence=0.2, agent="ernaehrungsplaner")).invoke({"audio": b"xx"})
+    assert result["route"] == "hitl"
+    assert result["awaiting_confirmation"] is True
 
-def test_classifier_failure_goes_remote():
+
+def test_unknown_agent_goes_hitl():
+    result = _graph(FakeClassifier(agent="unbekannt")).invoke({"audio": b"xx"})
+    assert result["route"] == "hitl"
+
+
+def test_classifier_failure_goes_hitl():
     class Broken:
         def classify(self, text, agents):
             raise RuntimeError("ollama down")
-    assert _graph(Broken()).invoke({"audio": b"xx"})["route"] == "remote"
+    result = _graph(Broken()).invoke({"audio": b"xx"})
+    assert result["route"] == "hitl"
+
+
+def test_agent_escalation_goes_hitl():
+    runner = MockAgentRunner(escalated=True, reason="medizinische Frage")
+    result = _graph(FakeClassifier(agent="ernaehrungsplaner"), runner).invoke({"audio": b"xx"})
+    assert result["route"] == "hitl"
+    assert result["awaiting_confirmation"] is True
+    assert result["escalation_reason"] == "medizinische Frage"
+
+
+def test_confirmation_yes_calls_server2():
+    g = _graph(FakeClassifier(remote_needed=True))
+    first = g.invoke({"audio": b"xx"})
+    second = g.invoke({"confirmation": "Ja", "query": first["query"]})
+    assert "[Großes Modell]" in second["answer"]
+    assert second["awaiting_confirmation"] is False
+
+
+def test_confirmation_no_stays_local():
+    g = _graph(FakeClassifier(remote_needed=True))
+    first = g.invoke({"audio": b"xx"})
+    second = g.invoke({"confirmation": "Nein", "query": first["query"]})
+    assert second["answer"] == "Alles klar, dann bleibe ich lokal."
+    assert second["awaiting_confirmation"] is False
