@@ -126,6 +126,8 @@ class OpencodeRunner(AgentRunner):
             return AgentResult(answer="", escalated=True, escalation_reason="opencode nicht gefunden")
         except subprocess.TimeoutExpired:
             return AgentResult(answer="", escalated=True, escalation_reason="Timeout")
+        if proc.returncode != 0:
+            raise RuntimeError(f"opencode exit_code={proc.returncode}: {proc.stderr or proc.stdout}")
         output = (proc.stdout or "").strip()
         if not output and proc.stderr:
             output = proc.stderr.strip()
