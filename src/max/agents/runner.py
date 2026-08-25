@@ -45,19 +45,29 @@ def parse_agent_output(raw: str) -> AgentResult:
     return AgentResult(answer=answer, escalated=True, escalation_reason=reason)
 
 
-def build_task_message(task: str, memory_context: str) -> str:
+def build_task_message(task: str, memory_context: str, card_path: str | None = None) -> str:
     """Setzt den Task-Prompt aus Nutzeranfrage und Memory-Kontext zusammen.
 
     Enthält die Anweisung zur strukturierten Eskalation, damit der Router
-    das HITL-Gate deterministisch auslösen kann.
+    das HITL-Gate deterministisch auslösen kann. Mit card_path erhält der
+    Agent zusätzlich die Anweisung, eine Display-Card zu schreiben.
     """
-    return (
+    message = (
         f"Aufgabe: {task}\n\n"
         f"Dein Memory-Kontext:\n{memory_context}\n\n"
         "Wenn die Aufgabe lokal nicht lösbar ist (z. B. medizinische, juristische "
         "oder sehr komplexe Fragen), antworte AUSSCHLIESSLICH mit:\n"
         f"{ESCALATION_MARKER} <kurze Begründung>"
     )
+    if card_path:
+        message += (
+            "\n\n## Display-Card\n"
+            f"Schreibe dein Ergebnis als Card-JSON-Datei in den Pfad: {card_path}\n"
+            "Schema: {\"agent\": \"<dein Name>\", \"title\": \"<Titel>\", "
+            "\"type\": \"<typ>\", \"data\": {<key: value>}, \"updated_at\": \"<ISO-Zeit>\"}\n"
+            "Typen: meal, weather, calendar, clock, generic."
+        )
+    return message
 
 
 class AgentRunner:
@@ -104,20 +114,26 @@ class OpencodeRunner(AgentRunner):
         command += ["--agent", agent_profile["name"]]
         return command
 
-    def _resolve_memory_dir(self, agent_profile: dict) -> str:
-        """Auflösung des Memory-Verzeichnisses (relativ → Repo-Root)."""
-        memory_dir = agent_profile["memory_dir"]
-        if os.path.isabs(memory_dir):
-            return memory_dir
+    def _resolve_path(self, path: str) -> str:
+        """Auflösung eines relativen Pfads gegen den Repo-Root (Eltern von config/opencode)."""
+        if os.path.isabs(path):
+            return path
         if self.opencode_dir:
             repo_root = os.path.dirname(os.path.dirname(self.opencode_dir))
-            return os.path.join(repo_root, memory_dir)
-        return memory_dir
+            return os.path.normpath(os.path.join(repo_root, path))
+        return path
+
+    def _resolve_memory_dir(self, agent_profile: dict) -> str:
+        """Auflösung des Memory-Verzeichnisses (relativ → Repo-Root)."""
+        return self._resolve_path(agent_profile["memory_dir"])
 
     def run(self, agent_profile: dict, task: str) -> AgentResult:
         """Führt den Agent aus und parst die Ausgabe (Antwort/Eskalation)."""
         memory = FileMemory(self._resolve_memory_dir(agent_profile))
-        prompt = build_task_message(task, memory.get_context())
+        card_path = agent_profile.get("card_path")
+        if card_path:
+            card_path = self._resolve_path(card_path)
+        prompt = build_task_message(task, memory.get_context(), card_path)
         command = self.build_command(agent_profile) + [prompt]
         try:
             proc = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout)

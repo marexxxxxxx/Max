@@ -26,4 +26,5 @@ def nutrition_profile() -> dict:
         "capabilities": ["meal plan", "recipes", "nutrition"],
         "runner": "opencode",
         "memory_dir": "data/agents/ernaehrungsplaner",
+        "card_path": "data/display/cards/ernaehrungsplaner.json",
     }
