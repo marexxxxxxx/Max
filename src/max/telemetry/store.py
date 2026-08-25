@@ -17,7 +17,8 @@ COLUMNS = (
 class TelemetryStore:
     def __init__(self, path: str):
         os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
-        self._conn = sqlite3.connect(path)
+        # check_same_thread=False: Pipeline- und Dashboard-Thread teilen sich die Verbindung
+        self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
         self._conn.execute(
             "CREATE TABLE IF NOT EXISTS requests ("
