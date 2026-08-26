@@ -97,3 +97,58 @@ def test_sse_streams_new_requests(tmp_path):
         except TimeoutError:
             pass
         assert received
+
+
+class FakeWfile:
+    def __init__(self, broken=False):
+        self.chunks = []
+        self.broken = broken
+
+    def write(self, data):
+        if self.broken:
+            raise BrokenPipeError
+        self.chunks.append(data)
+
+    def flush(self):
+        pass
+
+
+def _handler(tmp_path, broken=False):
+    import types
+    from max.dashboard.server import DashboardHandler
+    from max.telemetry.store import TelemetryStore
+    store = TelemetryStore(str(tmp_path / "t.db"))
+    server = types.SimpleNamespace(telemetry=store)
+    h = object.__new__(DashboardHandler)
+    h.server = server
+    h.wfile = FakeWfile(broken)
+    return h, store
+
+
+def test_poll_once_keepalive(monkeypatch, tmp_path):
+    monkeypatch.setattr("max.dashboard.server.time.sleep", lambda s: None)
+    h, store = _handler(tmp_path)
+    store.record({"speaker": "A", "text": "alt", "agent": "x"})
+    last = store.max_rowid()
+    result = h._poll_once(last)
+    assert result == last
+    assert b": keepalive\n\n" in b"".join(h.wfile.chunks)
+
+
+def test_poll_once_new_rows(monkeypatch, tmp_path):
+    monkeypatch.setattr("max.dashboard.server.time.sleep", lambda s: None)
+    h, store = _handler(tmp_path)
+    store.record({"speaker": "A", "text": "alt", "agent": "x"})
+    last = store.max_rowid()
+    store.record({"speaker": "B", "text": "neu", "agent": "y"})
+    result = h._poll_once(last)
+    assert result == last + 1
+    joined = b"".join(h.wfile.chunks)
+    assert b"event: request" in joined and b"neu" in joined
+
+
+def test_poll_once_disconnect(monkeypatch, tmp_path):
+    monkeypatch.setattr("max.dashboard.server.time.sleep", lambda s: None)
+    h, store = _handler(tmp_path, broken=True)
+    store.record({"speaker": "A", "text": "alt", "agent": "x"})
+    assert h._poll_once(store.max_rowid()) is None

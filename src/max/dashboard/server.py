@@ -117,7 +117,18 @@ class DashboardHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
         last = self.server.telemetry.max_rowid()
         while True:
-            time.sleep(POLL_INTERVAL)
+            new_last = self._poll_once(last)
+            if new_last is None:
+                break  # Client disconnected
+            last = new_last
+
+    def _poll_once(self, last):
+        """Ein Poll: neue Zeilen senden, sonst Keepalive.
+
+        Liefert die neue Last-ID; None, wenn der Client gegangen ist.
+        """
+        time.sleep(POLL_INTERVAL)
+        try:
             rows = self.server.telemetry.since(last)
             if rows:
                 for row in rows:
@@ -125,7 +136,12 @@ class DashboardHandler(BaseHTTPRequestHandler):
                         f"event: request\ndata: {json.dumps(row, ensure_ascii=False)}\n\n".encode("utf-8")
                     )
                 self.wfile.flush()
-                last = max(row["id"] for row in rows)
+                return max(row["id"] for row in rows)
+            self.wfile.write(b": keepalive\n\n")
+            self.wfile.flush()
+            return last
+        except (BrokenPipeError, ConnectionResetError):
+            return None
 
 
 class DashboardServer:
