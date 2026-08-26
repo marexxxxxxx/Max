@@ -36,6 +36,11 @@ def test_no_power_switch_without_env():
     assert s2.power_switch is None
 
 
+def test_main_imports_without_portaudio():
+    # sounddevice wird lazy importiert → Import muss ohne PortAudio funktionieren
+    import max.main
+
+
 def test_interview_overrun_ends_cleanly():
     from max.main import INTERVIEW_OVERFLOW_ANSWER, apply_interview_state
     result = {"interview_mode": True, "answer": "Wie sind deine Allergien?"}

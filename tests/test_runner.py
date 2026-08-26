@@ -68,6 +68,17 @@ def test_opencode_runner_fake_bin(tmp_path):
     assert result.answer == "Antwort vorab"
 
 
+def test_relative_memory_dir_resolved_against_repo_root(tmp_path):
+    # opencode_dir = <tmp>/config/opencode → Repo-Root = <tmp>
+    root = str(tmp_path / "repo")
+    os.makedirs(os.path.join(root, "config", "opencode"), exist_ok=True)
+    runner = OpencodeRunner(opencode_dir=os.path.join(root, "config", "opencode"))
+    assert runner._resolve_memory_dir({"memory_dir": "data/agents/x"}) == \
+        os.path.join(root, "data", "agents", "x")
+    assert runner._resolve_path("data/memory/person.yaml") == \
+        os.path.join(root, "data", "memory", "person.yaml")
+
+
 def test_opencode_runner_command():
     runner = OpencodeRunner(opencode_bin="opencode", opencode_dir="/tmp/x")
     cmd = runner.build_command({"name": "ernaehrungsplaner"})
