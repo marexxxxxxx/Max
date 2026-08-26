@@ -17,6 +17,7 @@ def run_smoke(audio: bytes, transcriber, diarizer, registry, classifier, profile
     store = TelemetryStore(store_path) if store_path else None
     graph = build_graph(transcriber, diarizer, registry, classifier, profiles, runner,
                         server2, recorder=recorder)
+    recorder.begin_request()
     result = graph.invoke({"audio": audio})
 
     summary = {
