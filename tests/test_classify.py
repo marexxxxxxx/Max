@@ -25,3 +25,12 @@ def test_classifier_with_mocked_ollama(monkeypatch):
     monkeypatch.setattr(ollama, "chat", fake_chat)
     c = OllamaClassifier("test-model").classify("Hallo", ["demo-agent"])
     assert c.agent == "demo-agent" and c.remote_needed is False
+
+
+def test_classifier_tokens_fallback_without_count(monkeypatch):
+    def fake_chat(model, messages):
+        return {"message": {"content": '{"agent": "demo-agent", "confidence": 0.8, "remote_needed": false}'}}
+    import ollama
+    monkeypatch.setattr(ollama, "chat", fake_chat)
+    c = OllamaClassifier("test-model").classify("Hallo", ["demo-agent"])
+    assert c.tokens > 0

@@ -42,4 +42,8 @@ class OllamaClassifier:
         import ollama
         prompt = SYSTEM_PROMPT.format(agents=", ".join(agents)) + f"\n\nAnfrage: {text}"
         resp = ollama.chat(model=self.model, messages=[{"role": "user", "content": prompt}])
-        return parse_classification(resp["message"]["content"], tokens=resp.get("count", 0))
+        count = resp.get("count")
+        if not count:
+            # Ollama liefert teils keinen Token-Count → grobe Schätzung
+            count = max(1, len(resp["message"]["content"]) // 4)
+        return parse_classification(resp["message"]["content"], tokens=int(count))
