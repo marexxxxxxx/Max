@@ -61,6 +61,24 @@ def speak_rec(tts, recorder, text: str) -> None:
         print(f"[Max] Telemetrie-Error: {e}")
 
 
+def make_server2(env=None):
+    """RemoteServer2Client wenn MAX_REMOTE_HOST gesetzt, sonst MockServer2 (Dev-Default)."""
+    env = env if env is not None else os.environ
+    host = env.get("MAX_REMOTE_HOST", "")
+    if not host:
+        return MockServer2()
+    from max.remote.client import RemoteServer2Client
+    from max.remote.wake import CommandPowerSwitch
+    power = CommandPowerSwitch(env["MAX_POWER_SWITCH_CMD"]) if env.get("MAX_POWER_SWITCH_CMD") else None
+    return RemoteServer2Client(
+        host=host,
+        port=int(env.get("MAX_REMOTE_PORT", "8090")),
+        power_switch=power,
+        timeout=float(env.get("MAX_REMOTE_TIMEOUT", "60")),
+        wake_timeout=float(env.get("MAX_REMOTE_WAKE_TIMEOUT", "120")),
+    )
+
+
 def main():
     import argparse
     import sounddevice as sd  # noqa: F841 — sicher, dass der Import am Start funktioniert
@@ -86,7 +104,7 @@ def main():
         OllamaClassifier(os.environ.get("MAX_OLLAMA_MODEL", "qwen2.5:9b")),
         profiles,
         runner,
-        MockServer2(),
+        make_server2(),
         recorder=recorder,
     )
     vad = Vad()
