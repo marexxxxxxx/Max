@@ -6,7 +6,10 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <header><h1>Max — Dashboard</h1></header>
+  <header>
+    <h1>Max — Dashboard</h1>
+    <button id="theme-toggle" type="button" title="Thema wechseln">🌙</button>
+  </header>
 
   <section id="requests">
     <h2>Anfragen</h2>
@@ -17,7 +20,7 @@
           <th>Sprecher</th>
           <th>Text</th>
           <th>Agent</th>
-          <th>Remote</th>
+          <th>Route</th>
           <th>Tokens</th>
           <th>Latenz</th>
           <th>Remote-Latenz</th>
@@ -29,55 +32,90 @@
 
   <section id="agents">
     <h2>Agenten</h2>
-    <ul id="agent-list"></ul>
+    <ul id="agent-list" class="agent-cards"></ul>
     <form id="agent-form">
       <label>Name <input type="text" name="name" required></label>
       <label>Beschreibung <input type="text" name="description"></label>
       <label>Schlagwörter (kommagetrennt) <input type="text" name="keywords"></label>
       <label>Fähigkeiten (kommagetrennt) <input type="text" name="capabilities"></label>
+      <div id="form-error" class="form-error" hidden></div>
       <button type="submit">Anlegen</button>
     </form>
   </section>
 
   <script>
-    // Live-Tracking: SSE-Stream mit Snapshot und neuen Anfragen
+    var MAX_ROWS = 200;
     var es = new EventSource("/events");
 
     es.addEventListener("snapshot", function (e) {
       var rows = JSON.parse(e.data);
-      // snapshot = neueste zuerst — umkehren, damit das neueste oben steht
-      for (var i = rows.length - 1; i >= 0; i--) {
-        addRow(rows[i]);
-      }
+      for (var i = rows.length - 1; i >= 0; i--) addRow(rows[i]);
     });
 
     es.addEventListener("request", function (e) {
-      var row = JSON.parse(e.data);
-      addRow(row);
+      addRow(JSON.parse(e.data));
     });
 
     function fmt(value) {
-      return value == null ? "-" : value;
+      return value == null ? "—" : value;
+    }
+
+    function chip(label, value) {
+      var span = document.createElement("span");
+      span.className = "chip";
+      span.textContent = label + (value == null ? "" : " " + value);
+      return span;
+    }
+
+    function latencyCell(ms) {
+      var wrap = document.createElement("div");
+      wrap.className = "latency";
+      wrap.textContent = ms == null ? "—" : Math.round(ms) + " ms";
+      if (ms != null) {
+        var bar = document.createElement("div");
+        bar.className = "latency-bar";
+        bar.style.width = Math.min(100, (ms / 3000) * 100) + "%";
+        wrap.appendChild(bar);
+      }
+      return wrap;
     }
 
     function addRow(row) {
+      var tbody = document.getElementById("rows");
       var tr = document.createElement("tr");
-      var tokens = fmt(row.tokens_router) + "/" + fmt(row.tokens_agent) + "/" + fmt(row.tokens_remote);
-      var latency = row.latency_total_ms == null ? "-" : Math.round(row.latency_total_ms) + " ms";
-      var remote = row.latency_remote_ms == null ? "-" : Math.round(row.latency_remote_ms) + " ms";
-      tr.innerHTML =
-        "<td>" + fmt(row.ts) + "</td>" +
-        "<td>" + fmt(row.speaker) + "</td>" +
-        "<td>" + fmt(row.text) + "</td>" +
-        "<td>" + fmt(row.agent) + "</td>" +
-        "<td>" + (row.remote_needed ? "ja" : "nein") + "</td>" +
-        "<td>" + tokens + "</td>" +
-        "<td>" + latency + "</td>" +
-        "<td>" + remote + "</td>";
-      document.getElementById("rows").insertBefore(tr, document.getElementById("rows").firstChild);
+
+      var cells = [fmt(row.ts), fmt(row.speaker), fmt(row.text), fmt(row.agent)];
+      cells.forEach(function (text) {
+        var td = document.createElement("td");
+        td.textContent = text;
+        tr.appendChild(td);
+      });
+
+      var route = document.createElement("td");
+      var badge = document.createElement("span");
+      badge.className = "badge " + (row.remote_needed ? "remote" : "local");
+      badge.textContent = row.remote_needed ? "remote" : "local";
+      route.appendChild(badge);
+      tr.appendChild(route);
+
+      var tokens = document.createElement("td");
+      tokens.appendChild(chip("R", row.tokens_router));
+      tokens.appendChild(chip("A", row.tokens_agent));
+      tokens.appendChild(chip("Rem", row.tokens_remote));
+      tr.appendChild(tokens);
+
+      var lat = document.createElement("td");
+      lat.appendChild(latencyCell(row.latency_total_ms));
+      tr.appendChild(lat);
+
+      var remote = document.createElement("td");
+      remote.appendChild(latencyCell(row.latency_remote_ms));
+      tr.appendChild(remote);
+
+      tbody.insertBefore(tr, tbody.firstChild);
+      while (tbody.rows.length > MAX_ROWS) tbody.deleteRow(tbody.rows.length - 1);
     }
 
-    // Agentenliste: laden via REST
     function loadAgents() {
       fetch("/api/agents")
         .then(function (r) { return r.json(); })
@@ -86,17 +124,28 @@
           ul.innerHTML = "";
           agents.forEach(function (a) {
             var li = document.createElement("li");
-            li.textContent = (a.name || "") + " — " + (a.description || "");
+            li.className = "agent-card";
+            var name = document.createElement("div");
+            name.className = "name";
+            name.textContent = a.name || "";
+            li.appendChild(name);
+            var desc = document.createElement("div");
+            desc.textContent = a.description || "";
+            li.appendChild(desc);
+            var kw = document.createElement("div");
+            kw.className = "kw";
+            kw.textContent = (a.keywords || []).join(", ");
+            li.appendChild(kw);
             ul.appendChild(li);
           });
         });
     }
     loadAgents();
 
-    // Agent-Formular: POST als JSON
     document.getElementById("agent-form").addEventListener("submit", function (e) {
       e.preventDefault();
       var f = e.target;
+      var error = document.getElementById("form-error");
       var split = function (v) {
         return (v || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
       };
@@ -113,11 +162,24 @@
       }).then(function (r) {
         if (r.ok) {
           f.reset();
+          error.hidden = true;
           loadAgents();
         } else {
-          alert("Anlegen fehlgeschlagen: " + r.status);
+          error.textContent = "Anlegen fehlgeschlagen: " + r.status;
+          error.hidden = false;
         }
       });
+    });
+
+    var themeBtn = document.getElementById("theme-toggle");
+    function applyTheme(dark) {
+      document.body.classList.toggle("dark", dark);
+      themeBtn.textContent = dark ? "☀️" : "🌙";
+      localStorage.setItem("max-dashboard-theme", dark ? "dark" : "light");
+    }
+    applyTheme(localStorage.getItem("max-dashboard-theme") === "dark");
+    themeBtn.addEventListener("click", function () {
+      applyTheme(!document.body.classList.contains("dark"));
     });
   </script>
 </body>

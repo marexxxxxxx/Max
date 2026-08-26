@@ -1,7 +1,7 @@
-/* Dark Theme für den Smart Mirror */
+/* Mirror 2.0: ambient Dark mit sanftem Fade */
 body {
   margin: 0;
-  background: #0b0f14;
+  background: linear-gradient(160deg, #0b1017 0%, #101823 60%, #0d131c 100%);
   color: #e6edf3;
   font-family: "Segoe UI", system-ui, sans-serif;
 }
@@ -13,7 +13,8 @@ header {
 h1 {
   margin: 0;
   font-size: 28px;
-  letter-spacing: 2px;
+  letter-spacing: 3px;
+  font-weight: 300;
 }
 
 #cards {
@@ -23,24 +24,65 @@ h1 {
   padding: 24px 32px;
 }
 
+.fade {
+  animation: fadeIn 0.6s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0.2; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .card {
-  background: #161b22;
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
   padding: 16px;
   min-height: 120px;
+  backdrop-filter: blur(6px);
 }
 
 .card h2 {
   margin: 0 0 12px;
   font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 1px;
+  color: #9fb3c8;
 }
 
-.card.clock {
+/* Uhr: Hero-Card */
+.card.clock .time {
+  font-size: 64px;
+  font-weight: 200;
+  letter-spacing: 2px;
+}
+
+.card.clock .date {
+  font-size: 15px;
+  color: #9fb3c8;
+  margin-top: 4px;
+}
+
+/* Wetter: Icon + Text */
+.card.weather .icon {
   font-size: 48px;
+  line-height: 1;
 }
 
-.card.weather .body {
-  font-size: 24px;
+.card.weather .temp {
+  font-size: 22px;
+  margin-top: 8px;
+}
+
+/* Kalender: „heute"-Highlight */
+.card.calendar .body div {
+  margin-bottom: 6px;
+  font-size: 16px;
+}
+
+.card.calendar .body .today {
+  color: #7dd3fc;
+  font-weight: 600;
 }
 
 .card.meal .body div {

@@ -10,9 +10,22 @@
   <header>
     <h1>Max</h1>
   </header>
-  <main id="cards"></main>
+  <main id="cards" class="fade"></main>
   <script>
-    // Cards rendern: pro Typ ein eigenes Layout
+    // Weather-Icon aus der deutschen Bedingungstext
+    var WEATHER_ICONS = {
+      "klar": "☀️", "meist klar": "🌤", "leicht bewölkt": "⛅", "bedeckt": "☁️",
+      "Nebel": "🌫", "nebelfrost": "🌫",
+      "Nieselregen": "🌦", "leichter Regen": "🌧", "Regen": "🌧", "starker Regen": "🌧",
+      "leichter Schnee": "❄️", "Schnee": "❄️", "starker Schnee": "❄️",
+      "Regenschauer": "🌧", "starke Regenschauer": "⛈",
+      "Gewitter": "⛈", "Gewitter mit Hagel": "⛈", "starkes Gewitter": "⛈"
+    };
+
+    function weatherIcon(condition) {
+      return WEATHER_ICONS[condition] || "🌡";
+    }
+
     function renderCard(card) {
       var el = document.createElement("section");
       el.className = "card " + card.type;
@@ -22,16 +35,34 @@
       var body = document.createElement("div");
       body.className = "body";
       var data = card.data || {};
-      if (card.type === "calendar" && data.events) {
+
+      if (card.type === "clock") {
+        var time = document.createElement("div");
+        time.className = "time";
+        time.textContent = data.time;
+        body.appendChild(time);
+        var date = document.createElement("div");
+        date.className = "date";
+        date.textContent = new Date().toLocaleDateString("de-DE", {
+          weekday: "long", day: "numeric", month: "long"
+        });
+        body.appendChild(date);
+      } else if (card.type === "weather") {
+        var icon = document.createElement("div");
+        icon.className = "icon";
+        icon.textContent = weatherIcon(data.condition);
+        body.appendChild(icon);
+        var temp = document.createElement("div");
+        temp.className = "temp";
+        temp.textContent = data.temperature + " — " + data.condition;
+        body.appendChild(temp);
+      } else if (card.type === "calendar" && data.events) {
         data.events.forEach(function (line) {
           var row = document.createElement("div");
           row.textContent = line;
+          if (line.indexOf("heute") === 0) row.className = "today";
           body.appendChild(row);
         });
-      } else if (card.type === "clock") {
-        body.textContent = data.time;
-      } else if (card.type === "weather") {
-        body.textContent = data.temperature + " — " + data.condition;
       } else {
         for (var key in data) {
           var row = document.createElement("div");
@@ -49,6 +80,10 @@
       cards.forEach(function (card) {
         container.appendChild(renderCard(card));
       });
+      // Fade neu auslösen
+      container.classList.remove("fade");
+      void container.offsetWidth;
+      container.classList.add("fade");
     }
 
     function loadCards() {
@@ -58,13 +93,28 @@
     }
 
     loadCards();
-    setInterval(loadCards, 5000);
 
-    // Live-Update: bei jeder geänderten Agent-Card neu laden
+    // Live-Update: SSE-only, mit Fallback-Poll falls SSE dauerhaft tot
     var source = new EventSource("/events");
+    var fallbackTimer = null;
+
     source.addEventListener("card", function () {
       loadCards();
     });
+
+    source.addEventListener("error", function () {
+      // readyState 2 = closed → kein Reconnect, Fallback-Poll starten
+      if (source.readyState === 2 && !fallbackTimer) {
+        fallbackTimer = setInterval(loadCards, 30000);
+      }
+    });
+
+    source.onopen = function () {
+      if (fallbackTimer) {
+        clearInterval(fallbackTimer);
+        fallbackTimer = null;
+      }
+    };
   </script>
 </body>
 </html>

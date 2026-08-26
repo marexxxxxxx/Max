@@ -31,3 +31,12 @@ def test_remote_latency_column():
     text = text.read_text(encoding="utf-8")
     assert "latency_remote_ms" in text
     assert "Remote-Latenz" in text
+
+
+def test_dashboard_calm_light_features():
+    text = Path(__file__).parent.parent / "src" / "max" / "dashboard" / "static" / "index.html"
+    text = text.read_text(encoding="utf-8")
+    assert "theme-toggle" in text
+    assert "badge" in text
+    assert "latency-bar" in text
+    assert "MAX_ROWS" in text

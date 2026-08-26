@@ -1,32 +1,156 @@
-/* Minimalistisches Dark-Theme für das Dashboard */
+/* Calm Light: ruhiges helles Theme, Dark-Mode via body.dark */
 body {
-  background: #101418;
-  color: #d8dee4;
+  background: #f6f7f9;
+  color: #1f2937;
   font-family: system-ui, sans-serif;
   margin: 1.5em;
 }
 
-h1 {
-  font-size: 1.3em;
+body.dark {
+  background: #101418;
+  color: #d8dee4;
 }
 
-section {
-  margin-bottom: 2em;
+header {
+  display: flex;
+  align-items: center;
+  gap: 0.75em;
 }
+
+#theme-toggle {
+  background: #e2e8f0;
+  border: none;
+  border-radius: 8px;
+  font-size: 1.1em;
+  padding: 0.2em 0.6em;
+  cursor: pointer;
+}
+
+body.dark #theme-toggle {
+  background: #1a2026;
+}
+
+h1 { font-size: 1.3em; margin: 0; }
+
+section { margin-bottom: 2em; }
 
 table {
   border-collapse: collapse;
   width: 100%;
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+}
+
+body.dark table {
+  background: #161b22;
+  border-color: #2a3138;
 }
 
 th, td {
-  border: 1px solid #2a3138;
+  border: 1px solid #e2e8f0;
   padding: 0.35em 0.6em;
   text-align: left;
 }
 
+body.dark th, body.dark td {
+  border-color: #2a3138;
+}
+
 th {
+  background: #f1f5f9;
+  font-weight: 600;
+}
+
+body.dark th {
   background: #1a2026;
+}
+
+/* Route-Badge */
+.badge {
+  display: inline-block;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+
+.badge.local {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.badge.remote {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+body.dark .badge.local {
+  background: #14532d;
+  color: #bbf7d0;
+}
+
+body.dark .badge.remote {
+  background: #783515;
+  color: #fde68a;
+}
+
+/* Token-Chips */
+.chip {
+  display: inline-block;
+  background: #e2e8f0;
+  border-radius: 4px;
+  padding: 1px 6px;
+  margin-right: 4px;
+  font-size: 0.85em;
+}
+
+body.dark .chip {
+  background: #2a3138;
+}
+
+/* Latenz mit Mini-Bar */
+.latency-bar {
+  display: block;
+  height: 4px;
+  margin-top: 3px;
+  border-radius: 2px;
+  background: #94a3b8;
+}
+
+body.dark .latency-bar {
+  background: #64748b;
+}
+
+/* Agenten-Karten */
+.agent-cards {
+  list-style: none;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  padding: 0;
+}
+
+.agent-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+}
+
+body.dark .agent-card {
+  background: #1a2026;
+  border-color: #2a3138;
+}
+
+.agent-card .name {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.agent-card .kw {
+  font-size: 0.85em;
+  color: #64748b;
+  margin-top: 6px;
 }
 
 form label {
@@ -35,9 +159,33 @@ form label {
 }
 
 form input {
-  background: #1a2026;
-  color: #d8dee4;
-  border: 1px solid #2a3138;
+  background: #ffffff;
+  color: inherit;
+  border: 1px solid #cbd5e1;
   padding: 0.3em;
   width: 22em;
+  max-width: 100%;
+}
+
+body.dark form input {
+  background: #1a2026;
+  border-color: #2a3138;
+}
+
+form button {
+  background: #2563eb;
+  color: #ffffff;
+  border: none;
+  border-radius: 6px;
+  padding: 0.4em 1em;
+  cursor: pointer;
+}
+
+.form-error {
+  color: #b91c1c;
+  margin-bottom: 0.5em;
+}
+
+body.dark .form-error {
+  color: #fca5a5;
 }
