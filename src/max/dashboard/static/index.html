@@ -20,6 +20,7 @@
           <th>Remote</th>
           <th>Tokens</th>
           <th>Latenz</th>
+          <th>Remote-Latenz</th>
         </tr>
       </thead>
       <tbody id="rows"></tbody>
@@ -63,6 +64,7 @@
       var tr = document.createElement("tr");
       var tokens = fmt(row.tokens_router) + "/" + fmt(row.tokens_agent) + "/" + fmt(row.tokens_remote);
       var latency = row.latency_total_ms == null ? "-" : Math.round(row.latency_total_ms) + " ms";
+      var remote = row.latency_remote_ms == null ? "-" : Math.round(row.latency_remote_ms) + " ms";
       tr.innerHTML =
         "<td>" + fmt(row.ts) + "</td>" +
         "<td>" + fmt(row.speaker) + "</td>" +
@@ -70,7 +72,8 @@
         "<td>" + fmt(row.agent) + "</td>" +
         "<td>" + (row.remote_needed ? "ja" : "nein") + "</td>" +
         "<td>" + tokens + "</td>" +
-        "<td>" + latency + "</td>";
+        "<td>" + latency + "</td>" +
+        "<td>" + remote + "</td>";
       document.getElementById("rows").insertBefore(tr, document.getElementById("rows").firstChild);
     }
 

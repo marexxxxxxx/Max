@@ -21,3 +21,13 @@ def test_style_css():
     with open(path, encoding="utf-8") as f:
         css = f.read()
     assert "background" in css
+
+
+from pathlib import Path
+
+
+def test_remote_latency_column():
+    text = Path(__file__).parent.parent / "src" / "max" / "dashboard" / "static" / "index.html"
+    text = text.read_text(encoding="utf-8")
+    assert "latency_remote_ms" in text
+    assert "Remote-Latenz" in text
