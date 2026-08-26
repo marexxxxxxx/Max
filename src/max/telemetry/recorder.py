@@ -50,5 +50,6 @@ class TelemetryRecorder:
             "latency_router_ms": self._latencies.get("router"),
             "latency_agent_ms": self._latencies.get("agent"),
             "latency_tts_ms": self._latencies.get("tts"),
+            "latency_remote_ms": self._latencies.get("remote"),
             "latency_total_ms": total,
         }

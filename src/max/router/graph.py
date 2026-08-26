@@ -122,9 +122,15 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
     def confirm(state):
         # Bestätigungsrunde: „Ja" schaltet Server 2 ein, sonst lokal bleiben
         if is_confirmation(state.get("confirmation") or ""):
+            _start("remote")
             server2.wake()
             answer = server2.ask(state.get("query", ""))
-            _tel_tokens("remote", answer)
+            _end("remote")
+            tokens = getattr(server2, "last_tokens", None)
+            if tokens is None:
+                _tel_tokens("remote", answer)
+            else:
+                _add_tokens("remote", tokens)
             return {"answer": answer, "awaiting_confirmation": False}
         return {"answer": "Alles klar, dann bleibe ich lokal.", "awaiting_confirmation": False}
 

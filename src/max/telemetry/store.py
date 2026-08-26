@@ -10,7 +10,7 @@ COLUMNS = (
     "ts", "speaker", "text", "agent", "remote_needed",
     "tokens_router", "tokens_agent", "tokens_remote",
     "latency_stt_ms", "latency_router_ms",
-    "latency_agent_ms", "latency_tts_ms", "latency_total_ms",
+    "latency_agent_ms", "latency_tts_ms", "latency_remote_ms", "latency_total_ms",
 )
 
 
@@ -27,8 +27,14 @@ class TelemetryStore:
             "remote_needed INTEGER,"
             "tokens_router INTEGER, tokens_agent INTEGER, tokens_remote INTEGER,"
             "latency_stt_ms REAL, latency_router_ms REAL,"
-            "latency_agent_ms REAL, latency_tts_ms REAL, latency_total_ms REAL)"
+            "latency_agent_ms REAL, latency_tts_ms REAL, latency_remote_ms REAL,"
+            "latency_total_ms REAL)"
         )
+        # Bestehende DBs: Spalte fehlertolerant nachlegen
+        try:
+            self._conn.execute("ALTER TABLE requests ADD COLUMN latency_remote_ms REAL")
+        except sqlite3.OperationalError:
+            pass  # Spalte existiert bereits
         self._conn.commit()
 
     def record(self, req: dict) -> int:
@@ -38,7 +44,7 @@ class TelemetryStore:
             "INSERT INTO requests (ts, speaker, text, agent, remote_needed,"
             "tokens_router, tokens_agent, tokens_remote,"
             "latency_stt_ms, latency_router_ms, latency_agent_ms,"
-            "latency_tts_ms, latency_total_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "latency_tts_ms, latency_remote_ms, latency_total_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             values,
         )
         self._conn.commit()
