@@ -34,3 +34,26 @@ def test_power_switch_from_env():
 def test_no_power_switch_without_env():
     s2 = make_server2({"MAX_REMOTE_HOST": "10.0.0.5"})
     assert s2.power_switch is None
+
+
+def test_interview_overrun_ends_cleanly():
+    from max.main import INTERVIEW_OVERFLOW_ANSWER, apply_interview_state
+    result = {"interview_mode": True, "answer": "Wie sind deine Allergien?"}
+    mode, turns = apply_interview_state(result, False, 10)
+    assert mode is False
+    assert turns == 11
+    assert result["answer"] == INTERVIEW_OVERFLOW_ANSWER
+
+
+def test_interview_normal_turn_continues():
+    from max.main import apply_interview_state
+    result = {"interview_mode": True, "answer": "Wie sind deine Allergien?"}
+    mode, turns = apply_interview_state(result, False, 1)
+    assert (mode, turns) == (True, 2)
+
+
+def test_interview_done_resets():
+    from max.main import apply_interview_state
+    result = {"interview_mode": False, "answer": "Fertig"}
+    mode, turns = apply_interview_state(result, True, 5)
+    assert (mode, turns) == (False, 0)

@@ -86,6 +86,28 @@ def resolve_model(env=None) -> str:
     return env.get("MAX_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
 
 
+INTERVIEW_OVERFLOW_ANSWER = "Das Interview ist zu lang geworden — ich fasse das Profil zusammen."
+
+
+def apply_interview_state(result: dict, interview_mode: bool, interview_turns: int) -> tuple[bool, int]:
+    """Aktualisiert Interview-Modus und Turn-Zahl nach einem Graph-Aufruf.
+
+    Überläuft das Interview (mehr als MAX_INTERVIEW_TURNS Turns), wird es
+    sauber beendet: Modus aus, Interview-Turns hochgezählt, und statt der
+    nächsten [ASK]-Frage eine Abschluss-Antwort.
+    """
+    if result.get("interview_mode"):
+        interview_mode = True
+        interview_turns += 1
+        if interview_turns > MAX_INTERVIEW_TURNS:
+            interview_mode = False
+            result["answer"] = INTERVIEW_OVERFLOW_ANSWER
+    else:
+        interview_mode = False
+        interview_turns = 0
+    return interview_mode, interview_turns
+
+
 def main():
     import argparse
 
@@ -146,15 +168,9 @@ def main():
         else:
             result = graph.invoke({"audio": audio})
 
-        # Interview-Modus: [ASK] hält das Gespräch, [DONE] beendet es
-        if result.get("interview_mode"):
-            interview_mode = True
-            interview_turns += 1
-            if interview_turns > MAX_INTERVIEW_TURNS:
-                interview_mode = False
-        else:
-            interview_mode = False
-            interview_turns = 0
+        # Interview-Modus: [ASK] hält das Gespräch, [DONE] beendet es,
+        # Überlauf → saubere Abschluss-Antwort
+        interview_mode, interview_turns = apply_interview_state(result, interview_mode, interview_turns)
 
         # HITL-Gate: remote-Routing braucht eine Sprachbestätigung des Users
         if result["awaiting_confirmation"]:
