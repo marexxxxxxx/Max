@@ -46,12 +46,12 @@ def _format_temperature(value: float) -> str:
 
 
 def clock_card() -> dict:
-    """Uhrzeit-Card (aktuelle Zeit, ISO-Format)."""
+    """Uhrzeit-Card (HH:MM, für den Smart Mirror gut lesbar)."""
     return {
         "agent": "display",
         "title": "Zeit",
         "type": "clock",
-        "data": {"time": _now_iso()},
+        "data": {"time": datetime.datetime.now().strftime("%H:%M")},
         "updated_at": _now_iso(),
     }
 

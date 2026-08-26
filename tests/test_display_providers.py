@@ -9,7 +9,13 @@ def test_clock_card_shape():
     card = clock_card()
     assert card["agent"] == "display"
     assert card["type"] == "clock"
-    datetime.fromisoformat(card["data"]["time"])
+
+
+def test_clock_card_hhmm():
+    card = clock_card()
+    t = card["data"]["time"]
+    assert len(t) == 5 and t[2] == ":"
+    assert 0 <= int(t[:2]) <= 23 and 0 <= int(t[3:]) <= 59
 
 
 def test_weather_card_with_fake_fetcher():
