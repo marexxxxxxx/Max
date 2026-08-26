@@ -1,4 +1,4 @@
-from max.agents.runner import MockAgentRunner
+from max.agents.runner import AgentResult, MockAgentRunner
 from max.remote.server2 import MockServer2
 from max.router.graph import build_graph
 from tests.conftest import FakeClassifier, FakeDiarizer, FakeTranscriber
@@ -73,3 +73,43 @@ def test_confirmation_no_stays_local():
     second = g.invoke({"confirmation": "Nein", "query": first["query"]})
     assert second["answer"] == "Alles klar, dann bleibe ich lokal."
     assert second["awaiting_confirmation"] is False
+
+
+class FakeInterviewRunner:
+    """Erster Turn: Frage + [ASK], zweiter Turn: Abschluss + [DONE]."""
+    def __init__(self):
+        self.calls = 0
+
+    def run(self, agent_profile, task):
+        self.calls += 1
+        if self.calls == 1:
+            return AgentResult(answer="Wie sind deine Allergien? [ASK]")
+        return AgentResult(answer="Alles notiert [DONE]")
+
+
+def _graph_interview(runner):
+    profiles = [{"name": "onboarding", "keywords": ["onboarding"], "memory_dir": "x"}]
+    return build_graph(
+        FakeTranscriber(), FakeDiarizer(), [{"name": "Alex"}],
+        FakeClassifier(agent="onboarding"), profiles, runner, MockServer2(),
+    )
+
+
+def test_interview_mode_continues():
+    runner = FakeInterviewRunner()
+    g = _graph_interview(runner)
+    first = g.invoke({"audio": b"xx"})
+    assert first["interview_mode"] is True
+    assert "[ASK]" not in first["answer"]
+    assert runner.calls == 1
+    second = g.invoke({"audio": b"xx", "interview_mode": True})
+    assert second["interview_mode"] is False
+    assert "[DONE]" not in second["answer"]
+    assert runner.calls == 2
+
+
+def test_interview_no_marker_ends():
+    runner = MockAgentRunner(answer="Interview fertig")
+    g = _graph_interview(runner)
+    result = g.invoke({"audio": b"xx"})
+    assert result["interview_mode"] is False

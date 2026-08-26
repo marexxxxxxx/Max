@@ -1,6 +1,7 @@
 import os
 import numpy as np
 
+from max.agents.person import PersonMemory
 from max.agents.runner import OpencodeRunner
 from max.config import load_agent_profiles, load_speakers
 from max.pipeline.diarization import PyannoteDiarizer
@@ -8,7 +9,7 @@ from max.pipeline.stt import WhisperTranscriber
 from max.pipeline.vad import SAMPLE_RATE, frame_bytes, Vad
 from max.remote.server2 import MockServer2
 from max.router.classify import OllamaClassifier
-from max.router.graph import build_graph
+from max.router.graph import MAX_INTERVIEW_TURNS, build_graph
 from max.telemetry.recorder import TelemetryRecorder
 from max.telemetry.store import TelemetryStore
 from max.tts.kokoro_tts import KokoroTts
@@ -93,7 +94,10 @@ def main():
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     registry = load_speakers(os.path.join(root, "config", "speakers.yaml"))
     profiles = load_agent_profiles(os.path.join(root, "config", "agents"))
-    runner = OpencodeRunner(opencode_dir=os.path.join(root, "config", "opencode"))
+    runner = OpencodeRunner(
+        opencode_dir=os.path.join(root, "config", "opencode"),
+        person_memory=PersonMemory(os.path.join(root, "data", "memory", "person.yaml")),
+    )
     transcriber = WhisperTranscriber()
     recorder = TelemetryRecorder()
     store = TelemetryStore(os.path.join(root, "data", "telemetry.db"))
@@ -125,12 +129,27 @@ def main():
             agents_dir=os.path.join(root, "config", "agents"),
         ).start_in_thread(port=int(os.environ.get("MAX_DASHBOARD_PORT", "8081")))
 
+    interview_mode = False
+    interview_turns = 0
     while True:
         audio = capture_audio(vad)
         if audio is None:
             continue
         recorder.begin_request()
-        result = graph.invoke({"audio": audio})
+        if interview_mode:
+            result = graph.invoke({"audio": audio, "interview_mode": True})
+        else:
+            result = graph.invoke({"audio": audio})
+
+        # Interview-Modus: [ASK] hält das Gespräch, [DONE] beendet es
+        if result.get("interview_mode"):
+            interview_mode = True
+            interview_turns += 1
+            if interview_turns > MAX_INTERVIEW_TURNS:
+                interview_mode = False
+        else:
+            interview_mode = False
+            interview_turns = 0
 
         # HITL-Gate: remote-Routing braucht eine Sprachbestätigung des Users
         if result["awaiting_confirmation"]:

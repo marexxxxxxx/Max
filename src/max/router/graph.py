@@ -32,6 +32,13 @@ class State(TypedDict):
     awaiting_confirmation: bool
     confirmation: str | None
     escalation_reason: str | None
+    interview_mode: bool
+
+# Interview-Modus (Subprojekt F): Marker, mit denen der Onboarding-Agent
+# signalisiert, ob weitere Fragen folgen. Max. viele Turns pro Interview.
+ASK_MARKER = "[ASK]"
+DONE_MARKER = "[DONE]"
+MAX_INTERVIEW_TURNS = 10
 
 
 def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, server2, recorder=None):
@@ -97,6 +104,9 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
         return {"agent": c.agent, "confidence": c.confidence, "remote_needed": c.remote_needed}
 
     def route(state):
+        # Onboarding-Anfragen laufen immer über den Interview-Node
+        if state["agent"] == "onboarding":
+            return "interview"
         if state["remote_needed"] or state["agent"] not in agent_names or state["confidence"] < 0.5:
             return "respond_remote"
         return "respond_local"
@@ -134,6 +144,35 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
             return {"answer": answer, "awaiting_confirmation": False}
         return {"answer": "Alles klar, dann bleibe ich lokal.", "awaiting_confirmation": False}
 
+    def interview(state):
+        profile = next((p for p in profiles if p["name"] == "onboarding"), None)
+        if profile is None:
+            return {"route": "hitl", "answer": "Das Onboarding kann ich leider nicht durchführen.",
+                    "query": state["text"], "awaiting_confirmation": False,
+                    "interview_mode": False}
+        _start("agent")
+        result = runner.run(profile, state["text"])
+        _end("agent")
+        _tel_tokens("agent", result.answer)
+        answer = result.answer
+        interview_mode = False
+        if result.escalated:
+            answer = "Das Onboarding kann ich leider nicht durchführen."
+        else:
+            if ASK_MARKER in answer:
+                interview_mode = True
+                answer = answer.replace(ASK_MARKER, "").strip()
+            if DONE_MARKER in answer:
+                answer = answer.replace(DONE_MARKER, "").strip()
+        return {"route": "local", "answer": answer, "awaiting_confirmation": False,
+                "interview_mode": interview_mode}
+
+    def post_transcribe(state):
+        # Interview-Fortsetzung geht direkt zum Onboarding, sonst Klassifikation
+        if state.get("interview_mode"):
+            return "interview"
+        return "classify"
+
     def start_router(state):
         # Erster Turn enthält Audio, Bestätigungsrunde kommt ohne Audio
         if state.get("audio"):
@@ -146,10 +185,14 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
     g.add_node("respond_local", respond_local)
     g.add_node("respond_remote", respond_remote)
     g.add_node("confirm", confirm)
+    g.add_node("interview", interview)
     g.add_conditional_edges(START, start_router, {"transcribe": "transcribe", "confirm": "confirm"})
-    g.add_edge("transcribe", "classify")
+    g.add_conditional_edges("transcribe", post_transcribe,
+                            {"interview": "interview", "classify": "classify"})
+    g.add_edge("interview", END)
     g.add_conditional_edges(
-        "classify", route, {"respond_local": "respond_local", "respond_remote": "respond_remote"}
+        "classify", route,
+        {"respond_local": "respond_local", "respond_remote": "respond_remote", "interview": "interview"}
     )
     g.add_edge("respond_local", END)
     g.add_edge("respond_remote", END)
