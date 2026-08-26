@@ -8,10 +8,10 @@ def _profiles():
     return [{"name": "ernaehrungsplaner", "keywords": ["ernährung"], "memory_dir": "x"}]
 
 
-def _graph(classifier, runner=None):
+def _graph(classifier, runner=None, transcriber=None):
     runner = runner if runner is not None else MockAgentRunner()
     return build_graph(
-        FakeTranscriber(), FakeDiarizer(), [{"name": "Alex"}],
+        transcriber or FakeTranscriber(), FakeDiarizer(), [{"name": "Alex"}],
         classifier, _profiles(), runner, MockServer2(),
     )
 
@@ -113,3 +113,15 @@ def test_interview_no_marker_ends():
     g = _graph_interview(runner)
     result = g.invoke({"audio": b"xx"})
     assert result["interview_mode"] is False
+
+
+class BrokenTranscriber:
+    def transcribe(self, audio):
+        raise RuntimeError("Whisper ist down")
+
+
+def test_transcribe_failure_routes_local_with_apology():
+    result = _graph(FakeClassifier(remote_needed=False), transcriber=BrokenTranscriber()).invoke({"audio": b"xx"})
+    assert result["route"] == "local"
+    assert result["answer"] == "Entschuldigung, ich konnte die Sprache nicht verstehen."
+    assert result["awaiting_confirmation"] is False

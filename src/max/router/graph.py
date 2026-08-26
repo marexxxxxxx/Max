@@ -39,6 +39,7 @@ class State(TypedDict):
 ASK_MARKER = "[ASK]"
 DONE_MARKER = "[DONE]"
 MAX_INTERVIEW_TURNS = 10
+STT_ERROR_ANSWER = "Entschuldigung, ich konnte die Sprache nicht verstehen."
 
 
 def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, server2, recorder=None):
@@ -86,9 +87,16 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
 
     def transcribe(state):
         _start("stt")
-        text = transcriber.transcribe(state["audio"])
-        segments = diarizer.diarize(state["audio"])
-        speaker = resolve_speaker([s[0] for s in segments], registry)
+        try:
+            text = transcriber.transcribe(state["audio"])
+            segments = diarizer.diarize(state["audio"])
+            speaker = resolve_speaker([s[0] for s in segments], registry)
+        except Exception:
+            # STT/Diarization down → lokale Entschuldigung statt Crash
+            _end("stt")
+            return {"text": "", "speaker": "unbekannt", "query": "",
+                    "route": "local", "answer": STT_ERROR_ANSWER,
+                    "awaiting_confirmation": False}
         _end("stt")
         return {"text": text, "speaker": speaker, "query": text}
 
@@ -168,6 +176,9 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
                 "interview_mode": interview_mode}
 
     def post_transcribe(state):
+        # STT-Fehler liefert bereits eine Antwort → direkt zu END
+        if state.get("answer"):
+            return "end"
         # Interview-Fortsetzung geht direkt zum Onboarding, sonst Klassifikation
         if state.get("interview_mode"):
             return "interview"
@@ -188,7 +199,7 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
     g.add_node("interview", interview)
     g.add_conditional_edges(START, start_router, {"transcribe": "transcribe", "confirm": "confirm"})
     g.add_conditional_edges("transcribe", post_transcribe,
-                            {"interview": "interview", "classify": "classify"})
+                            {"end": END, "interview": "interview", "classify": "classify"})
     g.add_edge("interview", END)
     g.add_conditional_edges(
         "classify", route,
