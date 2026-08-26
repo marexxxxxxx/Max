@@ -34,26 +34,66 @@ class State(TypedDict):
     escalation_reason: str | None
 
 
-def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, server2):
+def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, server2, recorder=None):
     """Baut die State-Maschine.
 
     profiles: Liste von Agent-Profilen (dicts mit „name", „keywords", ...).
     runner: AgentRunner, der die Fach-Agenten ausführt.
+    recorder: optionale Telemetrie (TelemetryRecorder); Fehler dürfen die
+    Pipeline nie crashen.
     """
     agent_names = [p["name"] for p in profiles]
 
+    def _start(stage):
+        # Telemetrie-Call: bei Fehler nur loggen, Pipeline weiterlaufen lassen
+        if recorder is None:
+            return
+        try:
+            recorder.start(stage)
+        except Exception as e:
+            print(f"[Max] Telemetrie-Error: {e}")
+
+    def _end(stage):
+        if recorder is None:
+            return
+        try:
+            recorder.end(stage)
+        except Exception as e:
+            print(f"[Max] Telemetrie-Error: {e}")
+
+    def _add_tokens(stage, n):
+        if recorder is None:
+            return
+        try:
+            recorder.add_tokens(stage, n)
+        except Exception as e:
+            print(f"[Max] Telemetrie-Error: {e}")
+
+    def _tel_tokens(stage, text):
+        if recorder is None:
+            return
+        try:
+            recorder.add_tokens(stage, recorder.estimate_tokens(text))
+        except Exception as e:
+            print(f"[Max] Telemetrie-Error: {e}")
+
     def transcribe(state):
+        _start("stt")
         text = transcriber.transcribe(state["audio"])
         segments = diarizer.diarize(state["audio"])
         speaker = resolve_speaker([s[0] for s in segments], registry)
+        _end("stt")
         return {"text": text, "speaker": speaker, "query": text}
 
     def classify(state):
+        _start("router")
         try:
             c = classifier.classify(state["text"], agent_names)
         except Exception:
             # Fehlfall (z. B. ollama down) → sicher remote
             c = Classification("unknown", 0.0, True)
+        _end("router")
+        _add_tokens("router", c.tokens)
         return {"agent": c.agent, "confidence": c.confidence, "remote_needed": c.remote_needed}
 
     def route(state):
@@ -66,7 +106,10 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
         if profile is None:
             return {"route": "hitl", "answer": HITL_QUESTION, "query": state["text"],
                     "awaiting_confirmation": True, "escalation_reason": "unbekannter Agent"}
+        _start("agent")
         result = runner.run(profile, state["text"])
+        _end("agent")
+        _tel_tokens("agent", result.answer)
         if result.escalated:
             return {"route": "hitl", "answer": HITL_QUESTION, "query": state["text"],
                     "awaiting_confirmation": True, "escalation_reason": result.escalation_reason}
@@ -80,7 +123,9 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
         # Bestätigungsrunde: „Ja" schaltet Server 2 ein, sonst lokal bleiben
         if is_confirmation(state.get("confirmation") or ""):
             server2.wake()
-            return {"answer": server2.ask(state.get("query", "")), "awaiting_confirmation": False}
+            answer = server2.ask(state.get("query", ""))
+            _tel_tokens("remote", answer)
+            return {"answer": answer, "awaiting_confirmation": False}
         return {"answer": "Alles klar, dann bleibe ich lokal.", "awaiting_confirmation": False}
 
     def start_router(state):

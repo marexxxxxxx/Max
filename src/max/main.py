@@ -9,6 +9,8 @@ from max.pipeline.vad import SAMPLE_RATE, frame_bytes, Vad
 from max.remote.server2 import MockServer2
 from max.router.classify import OllamaClassifier
 from max.router.graph import build_graph
+from max.telemetry.recorder import TelemetryRecorder
+from max.telemetry.store import TelemetryStore
 from max.tts.kokoro_tts import KokoroTts
 
 
@@ -46,6 +48,19 @@ def speak(tts, text: str) -> None:
         sd.wait()
 
 
+def speak_rec(tts, recorder, text: str) -> None:
+    """TTS mit Telemetrie: Latenz misst, Fehler crashen nie die Pipeline."""
+    try:
+        recorder.start("tts")
+    except Exception as e:
+        print(f"[Max] Telemetrie-Error: {e}")
+    speak(tts, text)
+    try:
+        recorder.end("tts")
+    except Exception as e:
+        print(f"[Max] Telemetrie-Error: {e}")
+
+
 def main():
     import argparse
     import sounddevice as sd  # noqa: F841 — sicher, dass der Import am Start funktioniert
@@ -53,6 +68,8 @@ def main():
     parser = argparse.ArgumentParser(description="Max — lokaler Sprachassistent")
     parser.add_argument("--serve-display", action="store_true",
                         help="startet zusätzlich den Display-Server (localhost)")
+    parser.add_argument("--serve-dashboard", action="store_true",
+                        help="startet zusätzlich das Web-Dashboard (localhost)")
     args = parser.parse_args()
 
     root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -60,6 +77,8 @@ def main():
     profiles = load_agent_profiles(os.path.join(root, "config", "agents"))
     runner = OpencodeRunner(opencode_dir=os.path.join(root, "config", "opencode"))
     transcriber = WhisperTranscriber()
+    recorder = TelemetryRecorder()
+    store = TelemetryStore(os.path.join(root, "data", "telemetry.db"))
     graph = build_graph(
         transcriber,
         PyannoteDiarizer(),
@@ -68,6 +87,7 @@ def main():
         profiles,
         runner,
         MockServer2(),
+        recorder=recorder,
     )
     vad = Vad()
     tts = KokoroTts()
@@ -80,16 +100,24 @@ def main():
             calendar_path=os.path.join(root, "config", "calendar.json"),
         ).start_in_thread(port=int(os.environ.get("MAX_DISPLAY_PORT", "8080")))
 
+    if args.serve_dashboard:
+        from max.dashboard.server import DashboardServer
+        DashboardServer(
+            db_path=os.path.join(root, "data", "telemetry.db"),
+            agents_dir=os.path.join(root, "config", "agents"),
+        ).start_in_thread(port=int(os.environ.get("MAX_DASHBOARD_PORT", "8081")))
+
     while True:
         audio = capture_audio(vad)
         if audio is None:
             continue
+        recorder.begin_request()
         result = graph.invoke({"audio": audio})
 
         # HITL-Gate: remote-Routing braucht eine Sprachbestätigung des Users
         if result["awaiting_confirmation"]:
             print(f"[Max]: {result['answer']}")
-            speak(tts, result["answer"])
+            speak_rec(tts, recorder, result["answer"])
             confirm_audio = capture_audio(vad)
             if confirm_audio is None:
                 continue  # keine Bestätigung → remote-Routing verworfen
@@ -101,7 +129,18 @@ def main():
             })
 
         print(f"[Max] ({result['speaker']}): {result['answer']}")
-        speak(tts, result["answer"])
+        speak_rec(tts, recorder, result["answer"])
+
+        # Telemetrie speichern: Fehler loggen, Pipeline nie crashen
+        try:
+            store.record(recorder.build(
+                speaker=result["speaker"],
+                text=result.get("text", result.get("query", "")),
+                agent=result.get("agent", ""),
+                remote_needed=bool(result.get("remote_needed", False)),
+            ))
+        except Exception as e:
+            print(f"[Max] Telemetrie-Error: {e}")
 
 
 if __name__ == "__main__":
