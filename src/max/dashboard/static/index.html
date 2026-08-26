@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <title>Max Dashboard</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header><h1>Max — Dashboard</h1></header>
+
+  <section id="requests">
+    <h2>Anfragen</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Zeit</th>
+          <th>Sprecher</th>
+          <th>Text</th>
+          <th>Agent</th>
+          <th>Remote</th>
+          <th>Tokens</th>
+          <th>Latenz</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </section>
+
+  <section id="agents">
+    <h2>Agenten</h2>
+    <ul id="agent-list"></ul>
+    <form id="agent-form">
+      <label>Name <input type="text" name="name" required></label>
+      <label>Beschreibung <input type="text" name="description"></label>
+      <label>Schlagwörter (kommagetrennt) <input type="text" name="keywords"></label>
+      <label>Fähigkeiten (kommagetrennt) <input type="text" name="capabilities"></label>
+      <button type="submit">Anlegen</button>
+    </form>
+  </section>
+
+  <script>
+    // Live-Tracking: SSE-Stream mit Snapshot und neuen Anfragen
+    var es = new EventSource("/events");
+
+    es.addEventListener("snapshot", function (e) {
+      var rows = JSON.parse(e.data);
+      // snapshot = neueste zuerst — umkehren, damit das neueste oben steht
+      for (var i = rows.length - 1; i >= 0; i--) {
+        addRow(rows[i]);
+      }
+    });
+
+    es.addEventListener("request", function (e) {
+      var row = JSON.parse(e.data);
+      addRow(row);
+    });
+
+    function fmt(value) {
+      return value == null ? "-" : value;
+    }
+
+    function addRow(row) {
+      var tr = document.createElement("tr");
+      var tokens = fmt(row.tokens_router) + "/" + fmt(row.tokens_agent) + "/" + fmt(row.tokens_remote);
+      var latency = row.latency_total_ms == null ? "-" : Math.round(row.latency_total_ms) + " ms";
+      tr.innerHTML =
+        "<td>" + fmt(row.ts) + "</td>" +
+        "<td>" + fmt(row.speaker) + "</td>" +
+        "<td>" + fmt(row.text) + "</td>" +
+        "<td>" + fmt(row.agent) + "</td>" +
+        "<td>" + (row.remote_needed ? "ja" : "nein") + "</td>" +
+        "<td>" + tokens + "</td>" +
+        "<td>" + latency + "</td>";
+      document.getElementById("rows").insertBefore(tr, document.getElementById("rows").firstChild);
+    }
+
+    // Agentenliste: laden via REST
+    function loadAgents() {
+      fetch("/api/agents")
+        .then(function (r) { return r.json(); })
+        .then(function (agents) {
+          var ul = document.getElementById("agent-list");
+          ul.innerHTML = "";
+          agents.forEach(function (a) {
+            var li = document.createElement("li");
+            li.textContent = (a.name || "") + " — " + (a.description || "");
+            ul.appendChild(li);
+          });
+        });
+    }
+    loadAgents();
+
+    // Agent-Formular: POST als JSON
+    document.getElementById("agent-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var f = e.target;
+      var split = function (v) {
+        return (v || "").split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+      };
+      var profile = {
+        name: f.name.value,
+        description: f.description.value,
+        keywords: split(f.keywords.value),
+        capabilities: split(f.capabilities.value)
+      };
+      fetch("/api/agents", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(profile)
+      }).then(function (r) {
+        if (r.ok) {
+          f.reset();
+          loadAgents();
+        } else {
+          alert("Anlegen fehlgeschlagen: " + r.status);
+        }
+      });
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+/* Minimalistisches Dark-Theme für das Dashboard */
+body {
+  background: #101418;
+  color: #d8dee4;
+  font-family: system-ui, sans-serif;
+  margin: 1.5em;
+}
+
+h1 {
+  font-size: 1.3em;
+}
+
+section {
+  margin-bottom: 2em;
+}
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+}
+
+th, td {
+  border: 1px solid #2a3138;
+  padding: 0.35em 0.6em;
+  text-align: left;
+}
+
+th {
+  background: #1a2026;
+}
+
+form label {
+  display: block;
+  margin-bottom: 0.4em;
+}
+
+form input {
+  background: #1a2026;
+  color: #d8dee4;
+  border: 1px solid #2a3138;
+  padding: 0.3em;
+  width: 22em;
+}

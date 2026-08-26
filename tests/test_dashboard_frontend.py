@@ -1,0 +1,23 @@
+import os
+
+
+def test_index_html():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    static = os.path.join(root, "src", "max", "dashboard", "static")
+    path = os.path.join(static, "index.html")
+    assert os.path.exists(path)
+    with open(path, encoding="utf-8") as f:
+        html = f.read()
+    assert "EventSource" in html
+    assert "/events" in html
+    assert "/api/agents" in html
+    assert "style.css" in html
+
+
+def test_style_css():
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    path = os.path.join(root, "src", "max", "dashboard", "static", "style.css")
+    assert os.path.exists(path)
+    with open(path, encoding="utf-8") as f:
+        css = f.read()
+    assert "background" in css
