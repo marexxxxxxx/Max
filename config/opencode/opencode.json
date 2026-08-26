@@ -10,6 +10,16 @@
         "bash": "deny",
         "external_directory": "allow"
       }
+    },
+    "onboarding": {
+      "description": "Onboarding: befüllt das gemeinsame Personen-Profil per Interview",
+      "prompt": "{file:./onboarding.prompt.md}",
+      "permission": {
+        "read": "allow",
+        "edit": "allow",
+        "bash": "deny",
+        "external_directory": "allow"
+      }
     }
   },
   "mcp": {

@@ -1,0 +1,6 @@
+name: onboarding
+description: "Onboarding: befüllt das gemeinsame Personen-Profil per Interview"
+keywords: [onboarding, interview, profil, kennenlernen, lernen]
+capabilities: [person profile, onboarding interview]
+memory_dir: data/agents/onboarding
+person_path: data/memory/person.yaml

@@ -19,3 +19,23 @@ def test_resolve_speaker_single():
 def test_resolve_speaker_multiple():
     reg = [{"name": "Alex"}]
     assert resolve_speaker(["SPEAKER_00", "SPEAKER_01"], reg) == "unbekannt"
+
+
+def test_onboarding_profile():
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    profiles = load_agent_profiles(os.path.join(root, "config", "agents"))
+    names = [p["name"] for p in profiles]
+    assert "onboarding" in names
+    ob = next(p for p in profiles if p["name"] == "onboarding")
+    assert ob["person_path"] == "data/memory/person.yaml"
+    assert "onboarding" in ob["keywords"]
+
+
+def test_opencode_json_has_onboarding():
+    import json
+    import os
+    root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    cfg = json.loads(open(os.path.join(root, "config", "opencode", "opencode.json"),
+                          encoding="utf-8").read())
+    assert "onboarding" in cfg["agent"]
