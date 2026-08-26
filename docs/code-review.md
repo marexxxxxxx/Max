@@ -1,6 +1,6 @@
 # Code-Review — Max (Stand nach Subprojekt F)
 
-Review aller Module: `src/max/**`, `config/**`, `scripts/**`. 124 Tests grün, aber
+Review aller Module: `src/max/**`, `config/**`, `scripts/**`. 145 Tests grün, aber
 im Code finden sich Fehler und Logiklücken. Geordnet nach Schweregrad.
 
 ## Fix-Status (TDD-Session)
@@ -14,7 +14,7 @@ im Code finden sich Fehler und Logiklücken. Geordnet nach Schweregrad.
 | 5 | Behoben: Transcribe-Guard mit `STT_ERROR_ANSWER` + Diarization-Guards (Commit `e92d123`) |
 | 6 | Behoben: `apply_interview_state` + `INTERVIEW_OVERFLOW_ANSWER` (Commit `11fc3ba`) |
 | 7 | Behoben: Wake-Check im confirm-Node (Commit `af46824`) |
-| 8 | Offen — braucht Mapping-Design (Voiceprint/Sprecher-IDs) |
+| 8 | Geplant — Voiceprint-Plan in `docs/superpowers/plans/2026-08-26-max-speaker-voiceprint.md` (pausiert) |
 | 9 | Behoben: `_poll_once` mit Keepalive + BrokenPipe (Commit `cfd16cf`) |
 | 10, 11 | Vertagt — gehen in das UI-Redesign „A + B kombiniert“ ein |
 | 12 | Behoben: HH:MM im Provider (Commit `70bc1fe`) |
