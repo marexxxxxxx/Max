@@ -17,3 +17,14 @@ def test_no_variants():
 
 def test_question_is_german():
     assert "Server 2" in HITL_QUESTION
+
+
+def test_stt_variants_are_confirmations():
+    assert is_confirmation("jaja")
+    assert is_confirmation("ja, ja")
+
+
+def test_negation_after_yes_rejects():
+    assert not is_confirmation("Ja, aber lass ihn aus")
+    assert not is_confirmation("ja, nicht")
+    assert not is_confirmation("ja, nein")
