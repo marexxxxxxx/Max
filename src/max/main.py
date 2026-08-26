@@ -122,11 +122,16 @@ def main():
             if confirm_audio is None:
                 continue  # keine Bestätigung → remote-Routing verworfen
             confirm_text = transcriber.transcribe(confirm_audio)
+            first = result
             result = graph.invoke({
                 "confirmation": confirm_text,
-                "query": result["query"],
-                "speaker": result["speaker"],
+                "query": first["query"],
+                "speaker": first["speaker"],
             })
+            # Bestätigungsrunde kennt text/agent/remote_needed nicht — aus der ersten Runde übernehmen
+            result["text"] = first.get("text", first.get("query", ""))
+            result["agent"] = first.get("agent", "")
+            result["remote_needed"] = bool(first.get("remote_needed", False))
 
         print(f"[Max] ({result['speaker']}): {result['answer']}")
         speak_rec(tts, recorder, result["answer"])
