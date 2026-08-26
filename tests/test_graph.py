@@ -120,6 +120,24 @@ class BrokenTranscriber:
         raise RuntimeError("Whisper ist down")
 
 
+class FakeDeadServer2:
+    def wake(self):
+        return False
+    def ask(self, query):
+        raise AssertionError("ask darf bei fehlgeschlagener Wake nicht aufgerufen werden")
+
+
+def test_wake_failure_gives_clear_message():
+    g = build_graph(
+        FakeTranscriber(), FakeDiarizer(), [{"name": "Alex"}],
+        FakeClassifier(remote_needed=True), _profiles(), MockAgentRunner(), FakeDeadServer2(),
+    )
+    first = g.invoke({"audio": b"xx"})
+    second = g.invoke({"confirmation": "Ja", "query": first["query"]})
+    assert second["answer"] == "Der Hauptrechner lässt sich leider nicht einschalten."
+    assert second["awaiting_confirmation"] is False
+
+
 def test_transcribe_failure_routes_local_with_apology():
     result = _graph(FakeClassifier(remote_needed=False), transcriber=BrokenTranscriber()).invoke({"audio": b"xx"})
     assert result["route"] == "local"

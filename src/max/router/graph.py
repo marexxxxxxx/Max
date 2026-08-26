@@ -40,6 +40,7 @@ ASK_MARKER = "[ASK]"
 DONE_MARKER = "[DONE]"
 MAX_INTERVIEW_TURNS = 10
 STT_ERROR_ANSWER = "Entschuldigung, ich konnte die Sprache nicht verstehen."
+WAKE_FAILED_ANSWER = "Der Hauptrechner lässt sich leider nicht einschalten."
 
 
 def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, server2, recorder=None):
@@ -141,7 +142,9 @@ def build_graph(transcriber, diarizer, registry, classifier, profiles, runner, s
         # Bestätigungsrunde: „Ja" schaltet Server 2 ein, sonst lokal bleiben
         if is_confirmation(state.get("confirmation") or ""):
             _start("remote")
-            server2.wake()
+            if not server2.wake():
+                _end("remote")
+                return {"answer": WAKE_FAILED_ANSWER, "awaiting_confirmation": False}
             answer = server2.ask(state.get("query", ""))
             _end("remote")
             tokens = getattr(server2, "last_tokens", None)
