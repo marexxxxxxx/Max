@@ -1,7 +1,15 @@
-from max.main import make_server2
+from max.main import make_server2, resolve_model
 from max.remote.client import RemoteServer2Client
 from max.remote.server2 import MockServer2
 from max.remote.wake import CommandPowerSwitch
+
+
+def test_resolve_model_default():
+    assert resolve_model({}) == "qwen3.5:9b"
+
+
+def test_resolve_model_env_override():
+    assert resolve_model({"MAX_OLLAMA_MODEL": "other-model"}) == "other-model"
 
 
 def test_mock_by_default():

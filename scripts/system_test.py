@@ -59,10 +59,10 @@ def main():
         from max.remote.server2 import MockServer2
         from max.router.classify import OllamaClassifier
         from max.tts.kokoro_tts import KokoroTts
-        from max.config import load_agent_profiles
+        from max.config import DEFAULT_OLLAMA_MODEL, load_agent_profiles
         transcriber = WhisperTranscriber()
         diarizer = PyannoteDiarizer()
-        classifier = OllamaClassifier(os.environ.get("MAX_OLLAMA_MODEL", "qwen3.5:9b"))
+        classifier = OllamaClassifier(os.environ.get("MAX_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL))
         profiles = load_agent_profiles(os.path.join(root, "config", "agents"))
         runner = OpencodeRunner(opencode_dir=os.path.join(root, "config", "opencode"))
         server2 = MockServer2()

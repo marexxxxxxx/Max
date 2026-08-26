@@ -2,6 +2,9 @@ from __future__ import annotations
 from pathlib import Path
 import yaml
 
+# Einheitsmodell für den lokalen Klassifikator (muss im Ollama-Cache existieren)
+DEFAULT_OLLAMA_MODEL = "qwen3.5:9b"
+
 
 def load_speakers(path: str) -> list[dict]:
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}

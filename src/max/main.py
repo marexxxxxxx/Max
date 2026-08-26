@@ -3,7 +3,7 @@ import numpy as np
 
 from max.agents.person import PersonMemory
 from max.agents.runner import OpencodeRunner
-from max.config import load_agent_profiles, load_speakers
+from max.config import DEFAULT_OLLAMA_MODEL, load_agent_profiles, load_speakers
 from max.pipeline.diarization import PyannoteDiarizer
 from max.pipeline.stt import WhisperTranscriber
 from max.pipeline.vad import SAMPLE_RATE, frame_bytes, Vad
@@ -80,9 +80,14 @@ def make_server2(env=None):
     )
 
 
+def resolve_model(env=None) -> str:
+    """Ollama-Modell: Env-Var MAX_OLLAMA_MODEL, sonst das vereinheitlichte Default."""
+    env = env if env is not None else os.environ
+    return env.get("MAX_OLLAMA_MODEL", DEFAULT_OLLAMA_MODEL)
+
+
 def main():
     import argparse
-    import sounddevice as sd  # noqa: F841 — sicher, dass der Import am Start funktioniert
 
     parser = argparse.ArgumentParser(description="Max — lokaler Sprachassistent")
     parser.add_argument("--serve-display", action="store_true",
@@ -105,7 +110,7 @@ def main():
         transcriber,
         PyannoteDiarizer(),
         registry,
-        OllamaClassifier(os.environ.get("MAX_OLLAMA_MODEL", "qwen2.5:9b")),
+        OllamaClassifier(resolve_model()),
         profiles,
         runner,
         make_server2(),
