@@ -1,5 +1,6 @@
 import os
 
+from max.agents.person import PersonMemory
 from max.agents.runner import (
     MockAgentRunner,
     OpencodeRunner,
@@ -71,3 +72,33 @@ def test_opencode_runner_command():
     runner = OpencodeRunner(opencode_bin="opencode", opencode_dir="/tmp/x")
     cmd = runner.build_command({"name": "ernaehrungsplaner"})
     assert cmd == ["opencode", "run", "--dir", "/tmp/x", "--agent", "ernaehrungsplaner"]
+
+
+def test_build_task_message_with_person():
+    msg = build_task_message(
+        "Plane eine Woche",
+        "Profil: sport: Krafttraining",
+        person_context="Personen-Profil:\n  allergien: ['Milch']",
+        person_path="/data/memory/person.yaml",
+    )
+    assert "Personen-Profil:\n  allergien: ['Milch']" in msg
+    assert "/data/memory/person.yaml" in msg
+
+
+def test_opencode_runner_with_person_memory(tmp_path):
+    script = tmp_path / "fake-opencode"
+    script.write_text("#!/bin/sh\nprintf 'Alles klar'\n", encoding="utf-8")
+    os.chmod(script, 0o755)
+    person = PersonMemory(str(tmp_path / "person.yaml"))
+    person.write_category("allergien", ["Milch"])
+    runner = OpencodeRunner(
+        opencode_bin=str(script), opencode_dir=str(tmp_path),
+        timeout=10.0, person_memory=person,
+    )
+    result = runner.run(
+        {"name": "x", "memory_dir": str(tmp_path / "mem"),
+         "person_path": str(tmp_path / "person.yaml")},
+        "Aufgabe",
+    )
+    assert result.answer == "Alles klar"
+    assert result.escalated is False

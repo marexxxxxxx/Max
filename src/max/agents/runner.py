@@ -45,20 +45,34 @@ def parse_agent_output(raw: str) -> AgentResult:
     return AgentResult(answer=answer, escalated=True, escalation_reason=reason)
 
 
-def build_task_message(task: str, memory_context: str, card_path: str | None = None) -> str:
-    """Setzt den Task-Prompt aus Nutzeranfrage und Memory-Kontext zusammen.
+def build_task_message(task: str, memory_context: str, person_context: str = "",
+                       card_path: str | None = None, person_path: str | None = None) -> str:
+    """Setzt den Task-Prompt aus Nutzeranfrage, Memory- und Personen-Kontext zusammen.
 
     Enthält die Anweisung zur strukturierten Eskalation, damit der Router
     das HITL-Gate deterministisch auslösen kann. Mit card_path erhält der
-    Agent zusätzlich die Anweisung, eine Display-Card zu schreiben.
+    Agent zusätzlich die Anweisung, eine Display-Card zu schreiben. Mit
+    person_path erhält er die Anweisung, neue dauerhafte Fakten ins
+    gemeinsame Personen-Profil eintragen.
     """
     message = (
         f"Aufgabe: {task}\n\n"
-        f"Dein Memory-Kontext:\n{memory_context}\n\n"
-        "Wenn die Aufgabe lokal nicht lösbar ist (z. B. medizinische, juristische "
+        f"Dein Memory-Kontext:\n{memory_context}\n"
+    )
+    if person_context:
+        message += f"\nDein Personen-Profil:\n{person_context}\n"
+    message += (
+        "\nWenn die Aufgabe lokal nicht lösbar ist (z. B. medizinische, juristische "
         "oder sehr komplexe Fragen), antworte AUSSCHLIESSLICH mit:\n"
         f"{ESCALATION_MARKER} <kurze Begründung>"
     )
+    if person_path:
+        message += (
+            f"\n\n## Personen-Profil\n"
+            f"Neue dauerhafte Fakten über die Person (Allergien, Ziele, Vorlieben, "
+            f"Beschränkungen) trägst du als YAML in die Datei {person_path} ein. "
+            f"Bestehende Einträge ergänzen, nicht überschreiben."
+        )
     if card_path:
         message += (
             "\n\n## Display-Card\n"
@@ -101,10 +115,12 @@ class OpencodeRunner(AgentRunner):
     data/agents/<name>/ landen.
     """
 
-    def __init__(self, opencode_bin: str = "opencode", opencode_dir: str | None = None, timeout: float = 120.0):
+    def __init__(self, opencode_bin: str = "opencode", opencode_dir: str | None = None,
+                 timeout: float = 120.0, person_memory=None):
         self.opencode_bin = opencode_bin
         self.opencode_dir = opencode_dir
         self.timeout = timeout
+        self.person_memory = person_memory
 
     def build_command(self, agent_profile: dict) -> list[str]:
         """Baut die Kommandozeile für einen Agent-Lauf."""
@@ -130,10 +146,14 @@ class OpencodeRunner(AgentRunner):
     def run(self, agent_profile: dict, task: str) -> AgentResult:
         """Führt den Agent aus und parst die Ausgabe (Antwort/Eskalation)."""
         memory = FileMemory(self._resolve_memory_dir(agent_profile))
+        person_context = self.person_memory.get_context() if self.person_memory is not None else ""
+        person_path = agent_profile.get("person_path")
+        if person_path:
+            person_path = self._resolve_path(person_path)
         card_path = agent_profile.get("card_path")
         if card_path:
             card_path = self._resolve_path(card_path)
-        prompt = build_task_message(task, memory.get_context(), card_path)
+        prompt = build_task_message(task, memory.get_context(), person_context, card_path, person_path)
         command = self.build_command(agent_profile) + [prompt]
         try:
             proc = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout)
