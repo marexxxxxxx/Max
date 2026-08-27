@@ -12,7 +12,7 @@ from max.router.classify import OllamaClassifier
 from max.router.graph import MAX_INTERVIEW_TURNS, build_graph
 from max.telemetry.recorder import TelemetryRecorder
 from max.telemetry.store import TelemetryStore
-from max.tts.kokoro_tts import KokoroTts
+from max.tts.piper_tts import PiperTts
 
 
 def capture_audio(vad: Vad, max_seconds: float = 30.0, end_silence_frames: int = 5):
@@ -124,6 +124,7 @@ def main():
     runner = OpencodeRunner(
         opencode_dir=os.path.join(root, "config", "opencode"),
         person_memory=PersonMemory(os.path.join(root, "data", "memory", "person.yaml")),
+        timeout=300,
     )
     transcriber = WhisperTranscriber()
     recorder = TelemetryRecorder()
@@ -139,7 +140,7 @@ def main():
         recorder=recorder,
     )
     vad = Vad()
-    tts = KokoroTts()
+    tts = PiperTts()
 
     if args.serve_display:
         from max.display.server import DisplayServer

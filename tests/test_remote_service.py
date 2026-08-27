@@ -50,3 +50,11 @@ def test_wake():
 def test_ask():
     port = _service()
     assert _post(port, "/ask", {"query": "Hallo"}) == {"answer": "Pong", "tokens": 1}
+
+
+def test_service_custom_host():
+    """Service honoriert einen expliziten Bind-Host (0.0.0.0) und ist erreichbar."""
+    port = _free_port()
+    Server2Service(StubBackend("Pong"), host="0.0.0.0", port=port).start_in_thread()
+    time.sleep(0.2)
+    assert _get(port, "/health") == {"status": "ok"}

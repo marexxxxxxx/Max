@@ -11,8 +11,13 @@ Eskalation: Ein Agent, der die Aufgabe lokal nicht lösen kann, antwortet
 mit "[ESCALATE] <grund>". parse_agent_output() macht daraus ein strukturiertes
 AgentResult, mit dem der Router das HITL-Gate steuert.
 """
+import json
 import os
 import subprocess
+import threading
+import time
+import urllib.parse
+import urllib.request
 from dataclasses import dataclass
 
 from max.agents.memory import FileMemory
@@ -43,6 +48,16 @@ def parse_agent_output(raw: str) -> AgentResult:
     reason = raw[idx + len(ESCALATION_MARKER):].strip()
     answer = raw[:idx].strip()
     return AgentResult(answer=answer, escalated=True, escalation_reason=reason)
+
+
+def extract_answer(events: list) -> str:
+    """Concateniert die Text-Antworten aus den SSE-Events (data.text von text.ended)."""
+    texts = []
+    for ev in events:
+        if ev.get("type") == "session.next.text.ended":
+            props = ev.get("data") or ev.get("properties") or ev.get("payload") or {}
+            texts.append(props.get("text", ""))
+    return "".join(texts)
 
 
 def build_task_message(task: str, memory_context: str, person_context: str = "",
@@ -107,31 +122,32 @@ class MockAgentRunner(AgentRunner):
 
 
 class OpencodeRunner(AgentRunner):
-    """Ruft `opencode run` nicht-interaktiv auf.
+    """Führt einen opencode-Agenten über die opencode-Server-API (HTTP + SSE) aus.
 
-    Der opencode-Agent (inkl. Mealie-MCP) ist in config/opencode/opencode.json
-    definiert. Relativ memory_dir-Pfade werden gegen den Repo-Root (Elterner
-    von config/opencode) aufgelöst, damit die Memory-Dateien in
-    data/agents/<name>/ landen.
+    Die opencode-CLI (`opencode run`) gibt in Nicht-TTY-Modus keine Ausgabe,
+    daher nutzt der Runner `opencode serve`: Bei Bedarf wird der Server mit
+    cwd=opencode_dir gestartet (damit die Projekt-Agenten geladen werden),
+    eine Session wird angelegt, der Agent gesetzt, der SSE-Eventstrom geöffnet
+    und der Prompt gesendet. Die Text-Antworten werden aus den
+    `session.next.text.ended`-Events (data.text) zusammengebaut.
+    Relativ memory_dir-Pfade werden gegen den Repo-Root (Eltern von
+    config/opencode) aufgelöst, damit die Memory-Dateien in data/agents/<name>/ landen.
     """
 
     def __init__(self, opencode_bin: str = "opencode", opencode_dir: str | None = None,
-                 timeout: float = 120.0, person_memory=None):
+                 port: int = 4096, base_url: str = None, timeout: float = 120.0, person_memory=None):
         self.opencode_bin = opencode_bin
         self.opencode_dir = opencode_dir
+        self.port = port
+        self.base_url = base_url or f"http://127.0.0.1:{port}"
         self.timeout = timeout
         self.person_memory = person_memory
-
-    def build_command(self, agent_profile: dict) -> list[str]:
-        """Baut die Kommandozeile für einen Agent-Lauf."""
-        command = [self.opencode_bin, "run"]
-        if self.opencode_dir:
-            command += ["--dir", self.opencode_dir]
-        command += ["--agent", agent_profile["name"]]
-        return command
+        self._server_proc = None
 
     def _resolve_path(self, path: str) -> str:
         """Auflösung eines relativen Pfads gegen den Repo-Root (Eltern von config/opencode)."""
+        if not path:
+            return path
         if os.path.isabs(path):
             return path
         if self.opencode_dir:
@@ -142,6 +158,47 @@ class OpencodeRunner(AgentRunner):
     def _resolve_memory_dir(self, agent_profile: dict) -> str:
         """Auflösung des Memory-Verzeichnisses (relativ → Repo-Root)."""
         return self._resolve_path(agent_profile["memory_dir"])
+
+    # --- Server-Verwaltung ---
+    def _server_ready(self) -> bool:
+        """Echte opencode-Server oder Test-Server auf base_url erreichbar?"""
+        try:
+            urllib.request.urlopen(self.base_url + "/agent", timeout=3)
+            return True
+        except Exception:
+            return False
+
+    def _ensure_server(self) -> None:
+        """Stellt sicher, dass ein opencode-Server auf base_url erreichbar ist."""
+        if self._server_ready():
+            return
+        # uvx (Mealie-MCP) liegt typischerweise in ~/.local/bin, das nicht immer im PATH.
+        env = os.environ.copy()
+        extra_bin = os.path.expanduser("~/.local/bin")
+        if os.path.isdir(extra_bin) and extra_bin not in env.get("PATH", ""):
+            env["PATH"] = extra_bin + os.pathsep + env.get("PATH", "")
+        proc = subprocess.Popen(
+            [self.opencode_bin, "serve", "--port", str(self.port)],
+            cwd=self.opencode_dir,
+            env=env,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        self._server_proc = proc
+        deadline = time.time() + self.timeout
+        while time.time() < deadline and not self._server_ready():
+            time.sleep(0.5)
+
+    # --- HTTP-Helfer ---
+    def _post(self, path: str, body) -> bytes:
+        data = json.dumps(body).encode() if body is not None else b""
+        req = urllib.request.Request(
+            self.base_url + path,
+            data=data,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        return urllib.request.urlopen(req, timeout=self.timeout).read()
 
     def run(self, agent_profile: dict, task: str) -> AgentResult:
         """Führt den Agent aus und parst die Ausgabe (Antwort/Eskalation)."""
@@ -154,17 +211,52 @@ class OpencodeRunner(AgentRunner):
         if card_path:
             card_path = self._resolve_path(card_path)
         prompt = build_task_message(task, memory.get_context(), person_context, card_path, person_path)
-        command = self.build_command(agent_profile) + [prompt]
-        try:
-            proc = subprocess.run(command, capture_output=True, text=True, timeout=self.timeout)
-        except FileNotFoundError:
-            # opencode nicht gefunden → sicher eskalieren statt abstürzen
-            return AgentResult(answer="", escalated=True, escalation_reason="opencode nicht gefunden")
-        except subprocess.TimeoutExpired:
-            return AgentResult(answer="", escalated=True, escalation_reason="Timeout")
-        if proc.returncode != 0:
-            raise RuntimeError(f"opencode exit_code={proc.returncode}: {proc.stderr or proc.stdout}")
-        output = (proc.stdout or "").strip()
-        if not output and proc.stderr:
-            output = proc.stderr.strip()
-        return parse_agent_output(output)
+
+        self._ensure_server()
+
+        # Session anlegen (POST /session)
+        sess_raw = self._post("/session?directory=" + urllib.parse.quote(self.opencode_dir), None)
+        sid = json.loads(sess_raw)["id"]
+
+        # Agent setzen (POST /api/session/{id}/agent)
+        self._post(f"/api/session/{sid}/agent", {"agent": agent_profile["name"]})
+
+        # SSE-Eventstrom öffnen (muss vor dem Prompt sein)
+        events: list = []
+        done = threading.Event()
+
+        def stream():
+            try:
+                req = urllib.request.Request(self.base_url + f"/api/session/{sid}/event")
+                resp = urllib.request.urlopen(req, timeout=self.timeout)
+                for raw in resp:
+                    line = raw.decode("utf-8").strip()
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[5:].strip()
+                    if payload == "[DONE]":
+                        break
+                    try:
+                        ev = json.loads(payload)
+                        events.append(ev)
+                        if ev.get("type") == "session.next.step.ended":
+                            done.set()
+                            break
+                    except Exception:
+                        pass
+                done.set()
+            except Exception:
+                done.set()
+
+        t = threading.Thread(target=stream, daemon=True)
+        t.start()
+        time.sleep(0.3)  # SSE-Verbindung aufbauen lassen
+
+        # Prompt senden
+        self._post(f"/api/session/{sid}/prompt", {"prompt": {"text": prompt}})
+
+        # Auf Fertigstellung warten
+        done.wait(self.timeout)
+        t.join(5)
+
+        return parse_agent_output(extract_answer(events))

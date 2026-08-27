@@ -7,7 +7,7 @@ def test_lazy_no_model_on_init():
 
 def test_transcribe_with_fake_model(monkeypatch):
     class FakeModel:
-        def transcribe(self, audio):
+        def transcribe(self, audio, language=None):
             return ([type("S", (), {"text": "Hallo Welt"})()], None)
     monkeypatch.setattr(WhisperTranscriber, "_ensure", lambda self: FakeModel())
     assert WhisperTranscriber().transcribe(b"audio") == "Hallo Welt"

@@ -58,7 +58,7 @@ def main():
         from max.pipeline.stt import WhisperTranscriber
         from max.remote.server2 import MockServer2
         from max.router.classify import OllamaClassifier
-        from max.tts.kokoro_tts import KokoroTts
+        from max.tts.piper_tts import PiperTts
         from max.config import DEFAULT_OLLAMA_MODEL, load_agent_profiles
         transcriber = WhisperTranscriber()
         diarizer = PyannoteDiarizer()
@@ -66,7 +66,7 @@ def main():
         profiles = load_agent_profiles(os.path.join(root, "config", "agents"))
         runner = OpencodeRunner(opencode_dir=os.path.join(root, "config", "opencode"))
         server2 = MockServer2()
-        tts = KokoroTts()
+        tts = PiperTts()
     else:
         audio = b"xx"
         from max.agents.runner import MockAgentRunner

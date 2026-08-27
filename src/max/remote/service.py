@@ -85,7 +85,8 @@ def make_backend_from_env():
 
 def main():
     port = int(os.environ.get("MAX_REMOTE_PORT", "8090"))
-    Server2Service(make_backend_from_env(), port=port).serve_forever()
+    bind = os.environ.get("MAX_REMOTE_BIND", "0.0.0.0")
+    Server2Service(make_backend_from_env(), host=bind, port=port).serve_forever()
 
 
 if __name__ == "__main__":
