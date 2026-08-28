@@ -1,0 +1,13 @@
+.git
+.gitignore
+.venv
+**/__pycache__
+.pytest_cache
+*.egg-info
+data/
+.superpowers
+docs/
+*.md
+tests/
+docker-compose.yml
+Dockerfile

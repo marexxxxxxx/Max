@@ -1,0 +1,23 @@
+services:
+  max:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: max-voice-assistant:latest
+    ports:
+      - "11434:11434"   # Ollama API (if you need to reach it from the host)
+    volumes:
+      - ollama-models:/data/ollama
+      - max-data:/app/data
+    # Audio: the voice assistant needs a microphone/speaker.
+    # Provide one via host device passthrough, e.g.:
+    #   devices:
+    #     - /dev/snd
+    # or mount a PulseAudio socket. Without audio, the assistant cannot capture/play.
+    environment:
+      - OLLAMA_MODELS=/data/ollama
+    restart: unless-stopped
+
+volumes:
+  ollama-models:
+  max-data:
